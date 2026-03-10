@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV260</title>
+    <title>CryptoV261</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -4560,19 +4560,25 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
             return data;
         }
 
+        var _pushing = false;
         function pushSave(uid) {
-            if(!uid) return Promise.resolve();
+            if(!uid || _pushing) return Promise.resolve();
+            _pushing = true;
             var data = getSaveData();
-            console.log('%c[CloudSync] ⬆ Push cloud', 'color:cyan');
             return _sb.from('saves').upsert({ uid: uid, data: data, saved_at: new Date().toISOString() })
-                .then(function(){ console.log('%c[CloudSync] ✅ Push OK', 'color:lime'); })
-                .catch(function(e){ console.warn('[CloudSync] Push erreur:', e); });
+                .then(function(res){ 
+                    _pushing = false;
+                    if(res && res.error) console.warn('[CloudSync] Push err:', res.error);
+                })
+                .catch(function(e){ _pushing = false; console.warn('[CloudSync] Push catch:', e); });
         }
 
         // Pull cloud et applique TOUJOURS si données présentes
         function pullAndApply(uid) {
+            if(!uid) return Promise.resolve();
             return _sb.from('saves').select('data').eq('uid', uid).single()
                 .then(function(res) {
+                    if(res && res.error) { console.warn('[CloudSync] Pull err:', res.error); return; }
                     var row = res.data;
                     if(!row || !row.data) {
                         console.log('%c[CloudSync] Pas de save cloud → local conservé', 'color:orange');
@@ -5419,7 +5425,7 @@ const firebaseConfig = window._firebaseConfig || {
                 setInterval(() => this.fastTick(), 50);
                 // Polling crew chat toutes les 15s
                 setInterval(() => this._pollCrewChat(), 15000);
-                // Push cloud toutes les 10s (backup)
+                // Push cloud toutes les 5s
                 setInterval(() => {
                     try {
                         if(window.CloudSync && window.CloudSync.user && !window.CloudSync.user.is_anonymous) {
@@ -5427,7 +5433,7 @@ const firebaseConfig = window._firebaseConfig || {
                             window.CloudSync.pushSave(window.CloudSync.user.id);
                         }
                     } catch(e) {}
-                }, 10000);
+                }, 5000);
             },
 
             setFirstName() {
