@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV252</title>
+    <title>CryptoV253</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -4540,115 +4540,95 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
         <!-- ═══ SUPABASE CLOUDSYNC ═══ -->
     <script>
     (function() {
-        // CloudSync Supabase — remplace Firebase Auth + Saves
         if(typeof supabase === 'undefined' || !supabase.createClient) {
             window.CloudSync = { configured: false, user: null };
             window.dispatchEvent(new Event('cloudsync-ready'));
             return;
         }
         var _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+        var SAVE_KEYS = ['detailedStats','ct_txlog','ct_skills','ct_themes',
+                         'playerName','avatarIdx','gameSettings','ct_offline_snap','ct_gamestate_v1'];
 
         function getSaveData() {
-            var keys = ['detailedStats','ct_txlog','ct_skills','ct_themes',
-                        'playerName','avatarIdx','gameSettings','ct_offline_snap','ct_gamestate_v1'];
-            var data = { _v: Date.now() };
-            keys.forEach(function(k) {
+            var data = {};
+            SAVE_KEYS.forEach(function(k) {
                 try { var v = localStorage.getItem(k); if(v) data[k] = v; } catch(e) {}
             });
             return data;
         }
 
         function pushSave(uid) {
-            return _sb.from('saves').upsert({ uid: uid, data: getSaveData(), saved_at: new Date().toISOString() })
-                .then(function(){}).catch(function(e){ console.warn('CloudSync push:', e); });
+            if(!uid) return Promise.resolve();
+            var data = getSaveData();
+            console.log('%c[CloudSync] ⬆ Push cloud', 'color:cyan');
+            return _sb.from('saves').upsert({ uid: uid, data: data, saved_at: new Date().toISOString() })
+                .then(function(){ console.log('%c[CloudSync] ✅ Push OK', 'color:lime'); })
+                .catch(function(e){ console.warn('[CloudSync] Push erreur:', e); });
         }
 
-        function pullSave(uid) {
+        // Pull cloud et applique TOUJOURS si données présentes
+        function pullAndApply(uid) {
             return _sb.from('saves').select('data').eq('uid', uid).single()
                 .then(function(res) {
                     var row = res.data;
-                    if(!row || !row.data) return false;
+                    if(!row || !row.data) {
+                        console.log('%c[CloudSync] Pas de save cloud → local conservé', 'color:orange');
+                        if(window.game) window.game._cloudPullDone = true;
+                        return;
+                    }
+                    // Écrire TOUTES les clés du cloud dans localStorage
                     var cloudData = row.data;
-                    // Comparer timestamps : cloud vs local
-                    var cloudState = null, localState = null;
-                    try { cloudState = cloudData['ct_gamestate_v1'] ? JSON.parse(cloudData['ct_gamestate_v1']) : null; } catch(e) {}
-                    try { var lr = localStorage.getItem('ct_gamestate_v1'); localState = lr ? JSON.parse(lr) : null; } catch(e) {}
-                    var cloudTs = (cloudState && cloudState._ts) ? cloudState._ts : 0;
-                    var localTs = (localState && localState._ts) ? localState._ts : 0;
-                    // Toujours écrire les clés non-état (stats, settings)
-                    ['detailedStats','ct_txlog','ct_skills','ct_themes','playerName','avatarIdx','gameSettings'].forEach(function(k) {
+                    SAVE_KEYS.forEach(function(k) {
                         if(cloudData[k]) try { localStorage.setItem(k, cloudData[k]); } catch(e) {}
                     });
-                    // N'écrire l'état de jeu que si le cloud est plus récent (ou si local vide)
-                    if((cloudTs > localTs || localTs === 0) && cloudData['ct_gamestate_v1']) {
-                        try { localStorage.setItem('ct_gamestate_v1', cloudData['ct_gamestate_v1']); } catch(e) {}
-                        console.log('%c[CloudSync] ☁️ Cloud plus récent ' + new Date(cloudTs).toLocaleTimeString() + ' > local ' + new Date(localTs).toLocaleTimeString() + ' → état cloud appliqué', 'color:lime');
-                        return true; // déclenche reloadFromStorage
-                    } else if(localTs > 0) {
-                        console.log('%c[CloudSync] 💾 Local plus récent ' + new Date(localTs).toLocaleTimeString() + ' > cloud ' + new Date(cloudTs).toLocaleTimeString() + ' → état local conservé', 'color:orange');
+                    console.log('%c[CloudSync] ☁️ Cloud chargé et appliqué', 'color:lime');
+                    // Appliquer au jeu
+                    if(window.game && window.game.reloadFromStorage) {
+                        window.game.reloadFromStorage();
+                    } else {
                         if(window.game) window.game._cloudPullDone = true;
-                        return false; // pas de reload nécessaire
                     }
-                    return true;
-                }).catch(function() { return false; });
+                })
+                .catch(function(e) {
+                    console.warn('[CloudSync] Pull erreur:', e);
+                    if(window.game) window.game._cloudPullDone = true;
+                });
         }
 
         var _pushTimer = null;
-        function schedulePush(uid) {
-            clearTimeout(_pushTimer);
-            _pushTimer = setTimeout(function() { pushSave(uid); }, 1000);
-        }
-
         window.CloudSync = {
             configured: true,
             user: null,
             getSaveData: getSaveData,
             pushSave: pushSave,
-            pullSave: pullSave,
-            schedulePush: schedulePush,
+            pullAndApply: pullAndApply,
+            schedulePush: function(uid) {
+                clearTimeout(_pushTimer);
+                _pushTimer = setTimeout(function() { pushSave(uid); }, 2000);
+            },
             loginGoogle: function() {
                 return _sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href } })
                     .catch(function(e){ console.warn('Google OAuth:', e); });
             },
             loginEmail: function(email, pw) {
                 return _sb.auth.signInWithPassword({ email: email, password: pw })
-                    .then(function(res) {
-                        if(res.error) throw res.error;
-                        return res.data.user;
-                    });
+                    .then(function(res) { if(res.error) throw res.error; return res.data.user; });
             },
             registerEmail: function(email, pw, pseudo) {
                 return _sb.auth.signUp({ email: email, password: pw, options: { data: { full_name: pseudo || '' } } })
-                    .then(function(res) {
-                        if(res.error) throw res.error;
-                        return res.data.user;
-                    });
+                    .then(function(res) { if(res.error) throw res.error; return res.data.user; });
             },
             logout: function() { return _sb.auth.signOut(); }
         };
 
-        // Flag pour éviter double-pull au démarrage
-        var _startupPullDone = false;
-
-        function _doStartupPull(user) {
-            if(_startupPullDone) return;
-            _startupPullDone = true;
-            console.log('%c[CloudSync] ⬇ Pull démarrage pour ' + user.email, 'color:cyan');
-            pullSave(user.id).then(function(hadCloud) {
-                if(window.game) {
-                    if(hadCloud) {
-                        console.log('%c[CloudSync] ✅ Cloud appliqué', 'color:lime');
-                        window.game.reloadFromStorage && window.game.reloadFromStorage();
-                    } else {
-                        console.log('%c[CloudSync] 💾 Local conservé', 'color:orange');
-                        window.game._cloudPullDone = true;
-                    }
-                }
+        var _pullDone = false;
+        function doStartupPull(user) {
+            if(_pullDone) return;
+            _pullDone = true;
+            console.log('%c[CloudSync] ⬇ Pull au démarrage...', 'color:cyan');
+            pullAndApply(user.id).then(function() {
                 window.dispatchEvent(new CustomEvent('cloudsync-auth', { detail: user }));
                 if(window.game && window.game.renderAccountUI) window.game.renderAccountUI();
-                window.dispatchEvent(new Event('cloudsync-ready'));
-            }).catch(function() {
-                if(window.game) window.game._cloudPullDone = true;
                 window.dispatchEvent(new Event('cloudsync-ready'));
             });
         }
@@ -4660,16 +4640,10 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                 window.game.leaderboard.uid = user.id;
                 window.game.syncLeaderboard && window.game.syncLeaderboard(true);
             }
-            // Pull au démarrage (INITIAL_SESSION) — une seule fois
-            if(user && !user.is_anonymous && event === 'INITIAL_SESSION') {
-                _doStartupPull(user);
-            }
-            // Pull sur nouvelle connexion explicite
-            if(user && !user.is_anonymous && event === 'SIGNED_IN') {
-                _startupPullDone = false; // reset pour forcer un vrai pull
-                _doStartupPull(user);
-            }
-            if(!user || user.is_anonymous) {
+            if(user && !user.is_anonymous) {
+                if(event === 'INITIAL_SESSION') doStartupPull(user);
+                if(event === 'SIGNED_IN') { _pullDone = false; doStartupPull(user); }
+            } else {
                 if(window.game) window.game._cloudPullDone = true;
                 window.dispatchEvent(new Event('cloudsync-ready'));
             }
@@ -4677,14 +4651,13 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
             if(window.game && window.game.renderAccountUI) window.game.renderAccountUI();
         });
 
-        // Fallback si onAuthStateChange ne fire pas
         _sb.auth.getSession().then(function(res) {
-            var session = res.data && res.data.session;
-            if(session && session.user && !session.user.is_anonymous) {
-                window.CloudSync.user = session.user;
-                _doStartupPull(session.user);
+            var s = res.data && res.data.session;
+            if(s && s.user && !s.user.is_anonymous) {
+                window.CloudSync.user = s.user;
+                doStartupPull(s.user);
             } else {
-                _sb.auth.signInAnonymously().catch(function(e){ console.warn("anon auth:", e); });
+                _sb.auth.signInAnonymously().catch(function(e){ console.warn('anon:', e); });
                 if(window.game) window.game._cloudPullDone = true;
                 window.dispatchEvent(new Event('cloudsync-ready'));
             }
@@ -5398,10 +5371,9 @@ const firebaseConfig = window._firebaseConfig || {
                         if(window.CloudSync && window.CloudSync.user && !window.CloudSync.user.is_anonymous) {
                             this._saveState();
                             window.CloudSync.pushSave(window.CloudSync.user.id);
-                            console.log('%c[CloudSync] ⬆ Push cloud ' + new Date().toLocaleTimeString(), 'color:cyan');
                         }
                     } catch(e) {}
-                }, 60000);
+                }, 30000);
             },
 
             setFirstName() {
@@ -6160,7 +6132,7 @@ _refillNewsDeck(sentiment) {
                         // Pull cloud au retour en foreground pour récupérer les changements de l'autre appareil
                         try {
                             if(window.CloudSync && window.CloudSync.user && !window.CloudSync.user.is_anonymous) {
-                                window.CloudSync.pullSave(window.CloudSync.user.id).then(hadCloud => {
+                                window.CloudSync.pullAndApply(window.CloudSync.user.id).then(hadCloud => {
                                     if(hadCloud && window.game) window.game.reloadFromStorage();
                                 });
                             }
