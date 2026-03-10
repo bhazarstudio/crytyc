@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV262</title>
+    <title>CryptoV263</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -6291,6 +6291,7 @@ _refillNewsDeck(sentiment) {
                     p = p.catch(() => fetchSvg(tryRemote));
 
                     p.then(svgText => {
+                            if(!svgText) return;
                             // Encoder en data URI base64
                             const b64 = btoa(unescape(encodeURIComponent(svgText)));
                             const dataUri = 'data:image/svg+xml;base64,' + b64;
