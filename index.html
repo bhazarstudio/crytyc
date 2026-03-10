@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV267</title>
+    <title>CryptoV268</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -4638,6 +4638,19 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                     if(!cloudData || !cloudData['ct_gamestate_v1'] || !window.game) return;
                     var s = JSON.parse(cloudData['ct_gamestate_v1']);
                     if(!s) return;
+                    // Bougie de transition pour chaque crypto dont le prix change
+                    if(s.prices && window.game.coinHistory) {
+                        for(var coin in s.prices) {
+                            var oldPrice = window.game.prices ? window.game.prices[coin] : null;
+                            var newPrice = s.prices[coin];
+                            if(oldPrice && newPrice && Math.abs(newPrice - oldPrice) / oldPrice > 0.001) {
+                                if(!window.game.coinHistory[coin]) window.game.coinHistory[coin] = [];
+                                var lo = Math.min(oldPrice, newPrice);
+                                var hi = Math.max(oldPrice, newPrice);
+                                window.game.coinHistory[coin].push({ o: oldPrice, c: newPrice, h: hi, l: lo });
+                            }
+                        }
+                    }
                     // Appliquer prix, wallet, cash immédiatement
                     if(s.prices) window.game.prices = s.prices;
                     if(s.targetPrices) window.game.targetPrices = s.targetPrices;
