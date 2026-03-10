@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV266</title>
+    <title>CryptoV267</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -4537,11 +4537,14 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 
 
-        <!-- ═══ SUPABASE CLOUDSYNC ═══ -->
+        <!-- ═══ SUPABASE CONFIG ═══ -->
+    <script>
+        var SUPABASE_URL  = 'https://kmcqzsfuupiihfnhtoul.supabase.co';
+        var SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImttY3F6c2Z1dXBpaWhmbmh0b3VsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwODQ4ODIsImV4cCI6MjA4ODY2MDg4Mn0.Sf87FpZTBex3TOX5t2VnMoKD0oDZwC2FIku_T3efsHI';
+    </script>
+    <!-- ═══ SUPABASE CLOUDSYNC ═══ -->
     <script>
     (function() {
-        var   SUPABASE_URL  = 'https://kmcqzsfuupiihfnhtoul.supabase.co';
-        var   SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImttY3F6c2Z1dXBpaWhmbmh0b3VsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwODQ4ODIsImV4cCI6MjA4ODY2MDg4Mn0.Sf87FpZTBex3TOX5t2VnMoKD0oDZwC2FIku_T3efsHI';
         if(typeof supabase === 'undefined' || !supabase.createClient) {
             window.CloudSync = { configured: false, user: null };
             window.dispatchEvent(new Event('cloudsync-ready'));
