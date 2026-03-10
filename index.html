@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV272</title>
+    <title>CryptoV273</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -4670,7 +4670,11 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                     if(!cloudData || !cloudData['ct_gamestate_v1'] || !window.game) return;
                     var s = JSON.parse(cloudData['ct_gamestate_v1']);
                     if(!s) return;
-                    // Bougie de transition pour chaque crypto dont le prix change
+                    // Vérifier timestamp : n'appliquer que si cloud > local
+                    var localTs = window.game._lastSaveTs || 0;
+                    var cloudTs = s._ts || 0;
+                    if(cloudTs <= localTs) return; // local plus récent, on ignore
+                    // Bougies de transition pour les prix qui changent
                     if(s.prices && window.game.coinHistory) {
                         for(var coin in s.prices) {
                             var oldPrice = window.game.prices ? window.game.prices[coin] : null;
@@ -4683,16 +4687,8 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                             }
                         }
                     }
-                    // Appliquer prix, wallet, cash immédiatement
-                    if(s.prices) window.game.prices = s.prices;
-                    if(s.targetPrices) window.game.targetPrices = s.targetPrices;
-                    if(s.cycleTargets) window.game.cycleTargets = s.cycleTargets;
-                    if(s.marketState) window.game.marketState = s.marketState;
-                    if(s.cycleTimer != null) window.game.cycleTimer = s.cycleTimer;
-                    if(s.cash != null) window.game.cash = s.cash;
-                    if(s.wallet) window.game.wallet = s.wallet;
-                    if(s.loan != null) window.game.loan = s.loan;
-                    if(s.day != null) window.game.day = s.day;
+                    // Appliquer le state complet du cloud
+                    window.game._applyState(s);
                 } catch(e) { console.warn('applyRealtimeData:', e); }
             },
             // Démarrer Realtime pour sync instantanée entre appareils
@@ -6363,6 +6359,7 @@ _refillNewsDeck(sentiment) {
             _STATE_KEY: 'ct_gamestate_v1',
             _saveState() {
                 try {
+                    this._lastSaveTs = Date.now();
                     const s = {
                         cash: this.cash,
                         loan: this.loan,
@@ -9549,9 +9546,9 @@ const step1 = document.getElementById('trade-step-1');
                         try { localStorage.setItem('crew_lastMsg_'+this.crew.id, ms.toString()); } catch(e) {}
                     }
                     // Badge si nouveau message non lu
-                    const lastMsgUid = data[0].uid || null;
-        const myUid = window.CloudSync && window.CloudSync.user ? window.CloudSync.user.id : null;
-        const hasUnread = ms > lr && lastMsgUid !== myUid;
+                    const lastMsgUid = (data[0] && data[0].uid) ? data[0].uid : null;
+        const myUid = (window.CloudSync && window.CloudSync.user && window.CloudSync.user.id) ? window.CloudSync.user.id : (this._uid || null);
+        const hasUnread = ms > lr && (myUid === null || lastMsgUid !== myUid);
                     const badge = document.querySelector('.crew-tab-badge');
                     if(badge) badge.style.display = hasUnread ? 'inline-block' : 'none';
                     const plusBtn = document.querySelector('.nav-btn[onclick*="tab(\'plus\'"]') ||
