@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV261</title>
+    <title>CryptoV262</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -6279,7 +6279,8 @@ _refillNewsDeck(sentiment) {
                 if (pending === 0) return;
 
                 const fetchSvg = (url) => fetch(url, { cache: 'no-store' })
-                        .then(r => r.ok ? r.text() : Promise.reject());
+                        .then(r => r.ok ? r.text() : Promise.reject())
+                        .catch(() => null);
 
                 missing.forEach(coin => {
                     const tryLocal  = localSources[coin];
