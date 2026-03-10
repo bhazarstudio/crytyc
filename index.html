@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV255</title>
+    <title>CryptoV257</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -4615,7 +4615,32 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                 return _sb.auth.signUp({ email: email, password: pw, options: { data: { full_name: pseudo || '' } } })
                     .then(function(res) { if(res.error) throw res.error; return res.data.user; });
             },
-            logout: function() { return _sb.auth.signOut(); }
+            logout: function() { return _sb.auth.signOut(); },
+            // Pull léger : ne synchronise que les prix (pas tout l'état)
+            pullPrices: function(uid) {
+                return _sb.from('saves').select('data').eq('uid', uid).single()
+                    .then(function(res) {
+                        var row = res.data;
+                        if(!row || !row.data || !row.data['ct_gamestate_v1']) return;
+                        var s = null;
+                        try { s = JSON.parse(row.data['ct_gamestate_v1']); } catch(e) { return; }
+                        if(!s || !window.game) return;
+                        // Appliquer seulement les prix si la save cloud est plus récente
+                        var localTs = 0;
+                        try { var lr = localStorage.getItem('ct_gamestate_v1'); if(lr) localTs = JSON.parse(lr)._ts || 0; } catch(e) {}
+                        if(s._ts <= localTs) return; // on est plus récent, rien à faire
+                        // Sync prix
+                        if(s.prices) window.game.prices = s.prices;
+                        if(s.targetPrices) window.game.targetPrices = s.targetPrices;
+                        if(s.cycleTargets) window.game.cycleTargets = s.cycleTargets;
+                        if(s.marketState) window.game.marketState = s.marketState;
+                        if(s.cycleTimer) window.game.cycleTimer = s.cycleTimer;
+                        // Sync wallet et cash si cloud plus récent
+                        if(s.cash !== undefined) window.game.cash = s.cash;
+                        if(s.wallet) window.game.wallet = s.wallet;
+                        if(s.loan !== undefined) window.game.loan = s.loan;
+                    }).catch(function() {});
+            }
         };
 
         var _pullDone = false;
@@ -5358,6 +5383,14 @@ const firebaseConfig = window._firebaseConfig || {
                 setInterval(() => this.fastTick(), 50);
                 // Polling crew chat toutes les 15s
                 setInterval(() => this._pollCrewChat(), 15000);
+                // Pull des prix cloud toutes les 1s (sync inter-appareils)
+                setInterval(() => {
+                    try {
+                        if(window.CloudSync && window.CloudSync.user && !window.CloudSync.user.is_anonymous) {
+                            window.CloudSync.pullPrices(window.CloudSync.user.id);
+                        }
+                    } catch(e) {}
+                }, 1000);
                 // Push cloud toutes les 60s (compteur indépendant)
                 setInterval(() => {
                     try {
@@ -5366,7 +5399,7 @@ const firebaseConfig = window._firebaseConfig || {
                             window.CloudSync.pushSave(window.CloudSync.user.id);
                         }
                     } catch(e) {}
-                }, 30000);
+                }, 10000);
             },
 
             setFirstName() {
@@ -10172,7 +10205,7 @@ this.tickStartups();
                 // Sync classement (throttle)
                 try { this.syncLeaderboard(false); } catch(e) {}
                 // Sauvegarde locale toutes les 10s
-                if((this.tickCount || 0) % 10 === 0) try { this._saveState(); } catch(e) {}
+                try { this._saveState(); } catch(e) {}
 
                 this.oldPrices = {...this.prices};
 
