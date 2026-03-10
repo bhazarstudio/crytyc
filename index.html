@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV243</title>
+    <title>CryptoV244</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -5986,6 +5986,14 @@ _refillNewsDeck(sentiment) {
                     } else {
                         startAudio();
                         this._checkOfflineEarnings();
+                        // Pull cloud au retour en foreground pour récupérer les changements de l'autre appareil
+                        try {
+                            if(window.CloudSync && window.CloudSync.user && !window.CloudSync.user.is_anonymous) {
+                                window.CloudSync.pullSave(window.CloudSync.user.id).then(hadCloud => {
+                                    if(hadCloud && window.game) window.game.reloadFromStorage();
+                                });
+                            }
+                        } catch(e) {}
                     }
                 });
 
@@ -9981,8 +9989,16 @@ this.tickStartups();
 
                 // Sync classement (throttle)
                 try { this.syncLeaderboard(false); } catch(e) {}
-                // Sauvegarde état courant toutes les 30s
+                // Sauvegarde locale toutes les 10s
                 if((this.tickCount || 0) % 10 === 0) try { this._saveState(); } catch(e) {}
+                // Push cloud toutes les 60s (si connecté)
+                if((this.tickCount || 0) % 60 === 0 && (this.tickCount || 0) > 0) {
+                    try {
+                        if(window.CloudSync && window.CloudSync.user && !window.CloudSync.user.is_anonymous) {
+                            window.CloudSync.pushSave(window.CloudSync.user.id);
+                        }
+                    } catch(e) {}
+                }
                 this.oldPrices = {...this.prices};
 
                 // Soupçon (module Pouvoir) : décroît doucement en continu, sans à-coups
