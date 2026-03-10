@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV249</title>
+    <title>CryptoV250</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -6199,7 +6199,7 @@ _refillNewsDeck(sentiment) {
 
             // Appelé après un pull cloud : compare timestamps et charge le plus récent
             reloadFromStorage() {
-                this._cloudPullDone = true; // Pull terminé, on peut sauvegarder localement
+                this._cloudPullDone = true;
                 try {
                     const raw = localStorage.getItem(this._STATE_KEY);
                     if(!raw) return;
@@ -6209,7 +6209,9 @@ _refillNewsDeck(sentiment) {
                     this.updateUI();
                     try { this.updateNameDisplay(); } catch(e) {}
                     try { this.updateAvatarDisplay(); } catch(e) {}
-                    this.spawnPop(window.innerWidth/2, window.innerHeight/3, '☁️ Sauvegarde synchronisée !');
+                    try { this.updateMiningDisplay && this.updateMiningDisplay(); } catch(e) {}
+                    try { this.renderMarket && this.renderMarket(); } catch(e) {}
+                    this.spawnPop(window.innerWidth/2, window.innerHeight/3, '☁️ Sauvegarde cloud chargée !');
                 } catch(e) { console.warn('reloadFromStorage error:', e); }
             },
 
@@ -17578,46 +17580,63 @@ window.addEventListener('load', () => {
             logout: function() { return _sb.auth.signOut(); }
         };
 
+        // Flag pour éviter double-pull au démarrage
+        var _startupPullDone = false;
+
+        function _doStartupPull(user) {
+            if(_startupPullDone) return;
+            _startupPullDone = true;
+            console.log('%c[CloudSync] ⬇ Pull démarrage pour ' + user.email, 'color:cyan');
+            pullSave(user.id).then(function(hadCloud) {
+                if(window.game) {
+                    if(hadCloud) {
+                        console.log('%c[CloudSync] ✅ Cloud appliqué', 'color:lime');
+                        window.game.reloadFromStorage && window.game.reloadFromStorage();
+                    } else {
+                        console.log('%c[CloudSync] 💾 Local conservé', 'color:orange');
+                        window.game._cloudPullDone = true;
+                    }
+                }
+                window.dispatchEvent(new CustomEvent('cloudsync-auth', { detail: user }));
+                if(window.game && window.game.renderAccountUI) window.game.renderAccountUI();
+                window.dispatchEvent(new Event('cloudsync-ready'));
+            }).catch(function() {
+                if(window.game) window.game._cloudPullDone = true;
+                window.dispatchEvent(new Event('cloudsync-ready'));
+            });
+        }
+
         _sb.auth.onAuthStateChange(function(event, session) {
             var user = session ? session.user : null;
             window.CloudSync.user = user;
-            // Pull save uniquement sur login réel (pas anonyme)
-            if(user && !user.is_anonymous && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION')) {
-                pullSave(user.id).then(function(hadCloud) {
-                    if(hadCloud && window.game) {
-                        window.game.reloadFromStorage && window.game.reloadFromStorage();
-                    }
-                });
-            }
-            // UID pour leaderboard (anonyme ou connecté)
             if(user && user.id && window.game && window.game.leaderboard) {
                 window.game.leaderboard.uid = user.id;
                 window.game.syncLeaderboard && window.game.syncLeaderboard(true);
+            }
+            // Pull au démarrage (INITIAL_SESSION) — une seule fois
+            if(user && !user.is_anonymous && event === 'INITIAL_SESSION') {
+                _doStartupPull(user);
+            }
+            // Pull sur nouvelle connexion explicite
+            if(user && !user.is_anonymous && event === 'SIGNED_IN') {
+                _startupPullDone = false; // reset pour forcer un vrai pull
+                _doStartupPull(user);
+            }
+            if(!user || user.is_anonymous) {
+                if(window.game) window.game._cloudPullDone = true;
+                window.dispatchEvent(new Event('cloudsync-ready'));
             }
             window.dispatchEvent(new CustomEvent('cloudsync-auth', { detail: user }));
             if(window.game && window.game.renderAccountUI) window.game.renderAccountUI();
         });
 
-        // Restaurer session existante OU connexion anonyme
+        // Fallback si onAuthStateChange ne fire pas
         _sb.auth.getSession().then(function(res) {
             var session = res.data && res.data.session;
             if(session && session.user && !session.user.is_anonymous) {
                 window.CloudSync.user = session.user;
-                // Pull la save cloud au démarrage
-                pullSave(session.user.id).then(function(hadCloud) {
-                    if(window.game) {
-                        if(hadCloud) {
-                            window.game.reloadFromStorage && window.game.reloadFromStorage();
-                        } else {
-                            window.game._cloudPullDone = true;
-                        }
-                    }
-                    window.dispatchEvent(new CustomEvent('cloudsync-auth', { detail: session.user }));
-                    if(window.game && window.game.renderAccountUI) window.game.renderAccountUI();
-                    window.dispatchEvent(new Event('cloudsync-ready'));
-                });
+                _doStartupPull(session.user);
             } else {
-                if(session) window.CloudSync.user = session.user;
                 _sb.auth.signInAnonymously().catch(function(e){ console.warn("anon auth:", e); });
                 if(window.game) window.game._cloudPullDone = true;
                 window.dispatchEvent(new Event('cloudsync-ready'));
