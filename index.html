@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV240</title>
+    <title>CryptoV241</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -3599,12 +3599,34 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
     </script>
 
   <!-- PWA -->
-  <link rel="manifest" href="data:application/json,{&quot;name&quot;:&quot;Crypto%20Tycoon&quot;,&quot;short_name&quot;:&quot;CryTyc&quot;,&quot;start_url&quot;:&quot;/&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%23000000&quot;,&quot;theme_color&quot;:&quot;%23ff6600&quot;,&quot;icons&quot;:[{&quot;src&quot;:&quot;data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23ff6600'/><text y='.9em' font-size='80' x='10'>₿</text></svg>&quot;,&quot;sizes&quot;:&quot;any&quot;,&quot;type&quot;:&quot;image/svg+xml&quot;}]}">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="CryTyc">
   <meta name="theme-color" content="#ff6600">
+  <script>
+    (function(){
+      var manifest = {
+        name: "Crypto Tycoon",
+        short_name: "CryTyc",
+        start_url: "/",
+        display: "standalone",
+        background_color: "#000000",
+        theme_color: "#ff6600",
+        icons: [{
+          src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23ff6600'/><text y='.9em' font-size='80' x='10'>%E2%82%BF</text></svg>",
+          sizes: "any",
+          type: "image/svg+xml"
+        }]
+      };
+      var blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
+      var url = URL.createObjectURL(blob);
+      var link = document.createElement('link');
+      link.rel = 'manifest';
+      link.href = url;
+      document.head.appendChild(link);
+    })();
+  </script>
 </head>
 <body>
 
@@ -5866,6 +5888,9 @@ _refillNewsDeck(sentiment) {
                 this.initFillerDeck();
                 this.startTopNews();
 
+                // Charger l'état sauvegardé
+                this._loadState();
+
                 // Classement (Firebase optionnel)
                 this.initFirebaseLeaderboard();
 
@@ -5977,6 +6002,7 @@ _refillNewsDeck(sentiment) {
                     if (document.hidden) {
                         stopAudio();
                         this._saveOfflineSnapshot();
+                        this._saveState();
                         // Force cloud push immédiat quand l'app passe en arrière-plan
                         try { if(window.CloudSync && window.CloudSync.user && !window.CloudSync.user.is_anonymous) window.CloudSync.pushSave(window.CloudSync.user.id); } catch(e) {}
                     } else {
@@ -6089,6 +6115,75 @@ _refillNewsDeck(sentiment) {
                             }
                         });
                 });
+            },
+
+            // ── SAUVEGARDE ÉTAT COURANT ────────────────────────────────────
+            _STATE_KEY: 'ct_gamestate_v1',
+            _saveState() {
+                try {
+                    const s = {
+                        cash: this.cash,
+                        loan: this.loan,
+                        level: this.level,
+                        day: this.day,
+                        reputation: this.reputation,
+                        prestige: this.prestige,
+                        maxNet: this.maxNet,
+                        totalMined: this.totalMined,
+                        tradeCount: this.tradeCount,
+                        airdropCount: this.airdropCount,
+                        overclock: this.overclock,
+                        overclockActive: this.overclockActive,
+                        periphLevel: this.periphLevel,
+                        algoLevel: this.algoLevel,
+                        machineLevel: this.machineLevel,
+                        coolingLevel: this.coolingLevel,
+                        powerLevel: this.powerLevel,
+                        turboLevel: this.turboLevel,
+                        wallet: this.wallet,
+                        txLog: this.txLog ? this.txLog.slice(-50) : [],
+                        skillPts: this.skillPts,
+                        unlockedSkills: this.unlockedSkills,
+                        username: this.username,
+                        avatarIdx: this.avatarIdx,
+                        pol: this.pol,
+                        powerGov: this.powerGov,
+                        assets: (this.assets||[]).map(a=>({owned:a.owned,cost:a.cost})),
+                        missions: this.missions,
+                        elitePerks: this.elitePerks,
+                        activePosition: this.activePosition,
+                        adBoost: this.adBoost,
+                        startups: this.startups,
+                        settings: this.settings,
+                        _ts: Date.now()
+                    };
+                    localStorage.setItem(this._STATE_KEY, JSON.stringify(s));
+                } catch(e) {}
+            },
+            _loadState() {
+                try {
+                    const raw = localStorage.getItem(this._STATE_KEY);
+                    if(!raw) return;
+                    const s = JSON.parse(raw);
+                    if(!s || !s._ts) return;
+                    const fields = ['cash','loan','level','day','reputation','prestige','maxNet',
+                        'totalMined','tradeCount','airdropCount','overclock','overclockActive',
+                        'periphLevel','algoLevel','machineLevel','coolingLevel','powerLevel',
+                        'turboLevel','wallet','skillPts','unlockedSkills','username','avatarIdx',
+                        'pol','powerGov','missions','elitePerks','activePosition','adBoost',
+                        'startups','settings'];
+                    for(const k of fields) { if(s[k] !== undefined) this[k] = s[k]; }
+                    // Assets : restaurer seulement owned/cost
+                    if(s.assets && this.assets) {
+                        s.assets.forEach((a,i) => { if(this.assets[i]) { this.assets[i].owned=a.owned||0; this.assets[i].cost=a.cost||this.assets[i].cost; }});
+                    }
+                    if(s.txLog) this.txLog = s.txLog;
+                    // Sync detailedStats depuis l'état
+                    if(this.detailedStats) {
+                        this.detailedStats.prestige = this.prestige;
+                        this.detailedStats.elitePerks = this.elitePerks;
+                    }
+                } catch(e) { console.warn('_loadState error:', e); }
             },
 
             _saveOfflineSnapshot() {
@@ -9888,6 +9983,8 @@ this.tickStartups();
 
                 // Sync classement (throttle)
                 try { this.syncLeaderboard(false); } catch(e) {}
+                // Sauvegarde état courant toutes les 30s
+                if((this.tickCount || 0) % 30 === 0) try { this._saveState(); } catch(e) {}
                 this.oldPrices = {...this.prices};
 
                 // Soupçon (module Pouvoir) : décroît doucement en continu, sans à-coups
@@ -17375,7 +17472,7 @@ window.addEventListener('load', () => {
 
         function getSaveData() {
             var keys = ['detailedStats','ct_txlog','ct_skills','ct_themes',
-                        'playerName','avatarIdx','gameSettings','ct_offline_snap'];
+                        'playerName','avatarIdx','gameSettings','ct_offline_snap','ct_gamestate_v1'];
             var data = { _v: Date.now() };
             keys.forEach(function(k) {
                 try { var v = localStorage.getItem(k); if(v) data[k] = v; } catch(e) {}
@@ -17393,7 +17490,7 @@ window.addEventListener('load', () => {
                 .then(function(res) {
                     var row = res.data;
                     if(!row || !row.data) return false;
-                    ['detailedStats','ct_txlog','ct_skills','ct_themes','playerName','avatarIdx','gameSettings'].forEach(function(k) {
+                    ['detailedStats','ct_txlog','ct_skills','ct_themes','playerName','avatarIdx','gameSettings','ct_gamestate_v1'].forEach(function(k) {
                         if(row.data[k]) try { localStorage.setItem(k, row.data[k]); } catch(e) {}
                     });
                     return true;
