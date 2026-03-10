@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV270</title>
+    <title>CryptoV271</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -971,7 +971,7 @@ input[type=range]#loan-slider::-moz-range-thumb {
         .skill-tab-bar { display:flex; border-bottom:1px solid #222; margin-bottom:0; }
         .skill-tab-btn { flex:1; padding:10px; font-size:0.72em; font-weight:700; letter-spacing:1px; text-align:center; color:#555; background:none; border:none; cursor:pointer; border-bottom:2px solid transparent; transition:0.15s; }
         .skill-tab-btn.tab-mine.active { color:#00ccff; border-bottom-color:#00ccff; }
-        .skill-tab-btn.tab-skills.active { color:#8844ff; border-bottom-color:#8844ff; }
+        .skill-tab-btn.tab-skills.active { color:#00e676; border-bottom-color:#00e676; }
         .skill-pts-bar { display:flex; align-items:center; justify-content:space-between; padding:10px 14px 6px; border-bottom:1px solid #1a1a26; }
         .skill-pts-count { font-size:1.1em; font-weight:900; color:#8844ff; font-family:monospace; }
         .skill-pts-label { font-size:0.62em; color:#666; }
@@ -3837,7 +3837,7 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                 <div class="dashboard-grid">
                 <div id="slot-invest"></div>
                 <div id="slot-power"></div>
-                <div class="app-card app-crew" onclick="game.openApp('crew')" style="position:relative;"><span class="app-icon">👥</span><span class="app-name">CREW</span><span class="crew-tab-badge" style="display:none;position:absolute;top:4px;right:4px;width:10px;height:10px;border-radius:50%;background:#ff3333;"></span></div>
+                <div class="app-card app-crew" id="crew-app-card" onclick="game.openApp('crew')" style="position:relative;"><span class="app-icon">👥</span><span class="app-name">CREW</span><span class="crew-tab-badge" style="display:none;position:absolute;top:4px;right:4px;width:10px;height:10px;border-radius:50%;background:#ff3333;"></span></div>
                 <div class="app-card app-assets" onclick="game.openApp('assets')"><span class="app-icon">🏢</span><span class="app-name">ACTIFS</span></div>
                 <div class="app-card app-casino" id="card-casino" onclick="game.openApp('casino')"><span class="app-icon" id="icon-casino">🔒</span><span class="app-name">TRADING</span></div>
                 <div class="app-card app-bank" onclick="game.openApp('bank')"><span class="app-icon">🏦</span><span class="app-name">BANQUE</span></div>
@@ -4617,19 +4617,23 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                         console.log('%c[CloudSync] Pas de save cloud → local conservé', 'color:orange');
                                                 return;
                     }
-                    // Écrire TOUTES les clés du cloud dans localStorage
+                    // Vérifier timestamp avant d'écraser
                     var cloudData = row.data;
+                    var cloudTs = 0, localTs = 0;
+                    try { if(cloudData['ct_gamestate_v1']) cloudTs = JSON.parse(cloudData['ct_gamestate_v1'])._ts || 0; } catch(e) {}
+                    try { var lr2 = localStorage.getItem('ct_gamestate_v1'); if(lr2) localTs = JSON.parse(lr2)._ts || 0; } catch(e) {}
+                    if(cloudTs > 0 && cloudTs < localTs) {
+                        console.log('%c[CloudSync] Local plus récent → skip', 'color:orange');
+                        return;
+                    }
                     SAVE_KEYS.forEach(function(k) {
-                        // Ne pas écraser les historiques — chaque appareil garde le sien
                         if(k === 'ct_history' || k === 'ct_coinhistory') return;
                         if(cloudData[k]) try { localStorage.setItem(k, cloudData[k]); } catch(e) {}
                     });
-                    console.log('%c[CloudSync] ☁️ Cloud chargé et appliqué', 'color:lime');
-                    // Appliquer au jeu
+                    console.log('%c[CloudSync] ☁️ Cloud appliqué ts=' + cloudTs, 'color:lime');
                     if(window.game && window.game.reloadFromStorage) {
                         window.game.reloadFromStorage();
-                    } else {
-                                            }
+                    }
                 })
                 .catch(function(e) {
                     console.warn('[CloudSync] Pull erreur:', e);
@@ -9552,6 +9556,14 @@ const step1 = document.getElementById('trade-step-1');
                     if(plusBtn) {
                         if(hasUnread) plusBtn.classList.add('has-notif-orange');
                         else plusBtn.classList.remove('has-notif-orange');
+                    // Pastille orange sur la carte crew dans le menu Plus
+                    const crewCard = document.getElementById('crew-app-card');
+                    if(crewCard) {
+                        let dot = crewCard.querySelector('.crew-unread-dot');
+                        if(hasUnread) {
+                            if(!dot) { dot = document.createElement('span'); dot.className='crew-unread-dot'; dot.style.cssText='position:absolute;top:6px;right:6px;width:10px;height:10px;border-radius:50%;background:#ff8833;border:2px solid #111;box-shadow:0 0 5px #ff8833;'; crewCard.appendChild(dot); }
+                        } else if(dot) dot.remove();
+                    }
                     }
                     // Si le chat est ouvert, refresh automatique
                     const msgsEl = document.getElementById('crew-chat-msgs');
