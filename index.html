@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV238</title>
+    <title>CryptoV239</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -5985,7 +5985,7 @@ _refillNewsDeck(sentiment) {
                     this._saveOfflineSnapshot();
                     try { localStorage.setItem('ct_txlog', JSON.stringify(this.txLog || [])); } catch(e) {}
                     // Cloud sync: push debounced
-                    try { if(window.CloudSync?.user) window.CloudSync.schedulePush(window.CloudSync.user.uid); } catch(e) {}
+                    try { if(window.CloudSync?.user) window.CloudSync.schedulePush(window.CloudSync.user.id); } catch(e) {}
                     try { localStorage.setItem('ct_skills', JSON.stringify({pts:this.skillPts||0, unlocked:this.unlockedSkills||{}})); } catch(e) {}
                 });
                 // Au lieu de lancer un cycle aléatoire tout de suite, on force le NEUTRE
@@ -6571,12 +6571,12 @@ this.playSound('buy');
                 try {
                     const user = await cs.loginGoogle();
                     if(!user) return; // login via redirect en cours
-                    const hadCloud = await cs.pullSave(user.uid);
+                    const hadCloud = await cs.pullSave(user.id);
                     if(hadCloud) {
                         this.spawnPop(window.innerWidth/2, window.innerHeight/2, '☁️ Save cloud chargée !');
                         setTimeout(() => location.reload(), 1200);
                     } else {
-                        await cs.pushSave(user.uid);
+                        await cs.pushSave(user.id);
                         this.spawnPop(window.innerWidth/2, window.innerHeight/2, '✓ Compte créé, save envoyée !');
                     }
                 } catch(e) {
@@ -6593,7 +6593,7 @@ this.playSound('buy');
                 if(!email || !pw) { this._accountShowError('Email et mot de passe requis'); return; }
                 try {
                     const user = await cs.loginEmail(email, pw);
-                    const hadCloud = await cs.pullSave(user.uid);
+                    const hadCloud = await cs.pullSave(user.id);
                     if(hadCloud) {
                         this.spawnPop(window.innerWidth/2, window.innerHeight/2, '☁️ Save cloud chargée !');
                         setTimeout(() => location.reload(), 1200);
@@ -6618,7 +6618,7 @@ this.playSound('buy');
                 if(pw.length < 6) { this._accountShowError('Mot de passe trop court (6 min)'); return; }
                 try {
                     const user = await cs.registerEmail(email, pw, pseudo);
-                    await cs.pushSave(user.uid);
+                    await cs.pushSave(user.id);
                     this.spawnPop(window.innerWidth/2, window.innerHeight/2, '✓ Compte créé !');
                 } catch(e) {
                     if (this._accountExplainFirebaseIssue && this._accountExplainFirebaseIssue(e)) return;
@@ -6630,14 +6630,14 @@ this.playSound('buy');
             async accountPushSave() {
                 const cs = window.CloudSync;
                 if(!cs?.user) return;
-                await cs.pushSave(cs.user.uid);
+                await cs.pushSave(cs.user.id);
                 this.spawnPop(window.innerWidth/2, window.innerHeight/2, '☁️ Sauvegarde envoyée !');
             },
 
             async accountPullSave() {
                 const cs = window.CloudSync;
                 if(!cs?.user) return;
-                const ok = await cs.pullSave(cs.user.uid);
+                const ok = await cs.pullSave(cs.user.id);
                 if(ok) {
                     this.spawnPop(window.innerWidth/2, window.innerHeight/2, '☁️ Save restaurée — rechargement...');
                     setTimeout(() => location.reload(), 1200);
@@ -6650,7 +6650,7 @@ this.playSound('buy');
                 const cs = window.CloudSync;
                 if(!cs) return;
                 // Push before logout
-                if(cs.user) await cs.pushSave(cs.user.uid);
+                if(cs.user && !cs.user.is_anonymous) await cs.pushSave(cs.user.id);
                 await cs.logout();
                 this.spawnPop(window.innerWidth/2, window.innerHeight/2, '✓ Déconnecté');
                 this.renderAccountUI();
@@ -16799,7 +16799,7 @@ this.showGameModal({
         (function(){
           function flush(){
             try { if(window.game && typeof window.game.syncLeaderboard === 'function') window.game.syncLeaderboard(true, true); } catch(e) {}
-            try { if(window.CloudSync && window.CloudSync.configured && window.CloudSync.user && window.CloudSync.user.uid) window.CloudSync.pushSave(window.CloudSync.user.uid); } catch(e) {}
+            try { if(window.CloudSync && window.CloudSync.configured && window.CloudSync.user && window.CloudSync.user.id) window.CloudSync.pushSave(window.CloudSync.user.id); } catch(e) {}
           }
           window.addEventListener('pagehide', flush);
           document.addEventListener('visibilitychange', function(){ if(document.hidden) flush(); });
