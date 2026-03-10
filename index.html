@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV242</title>
+    <title>CryptoV243</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -6144,6 +6144,13 @@ _refillNewsDeck(sentiment) {
                     if(!raw) return;
                     const s = JSON.parse(raw);
                     if(!s || !s._ts) return;
+                    this._applyState(s);
+                } catch(e) { console.warn('_loadState error:', e); }
+            },
+
+            // Applique un état (local ou cloud) au game object
+            _applyState(s) {
+                try {
                     const fields = ['cash','loan','level','day','reputation','prestige','maxNet',
                         'totalMined','tradeCount','airdropCount','overclock','overclockActive',
                         'periphLevel','algoLevel','machineLevel','coolingLevel','powerLevel',
@@ -6151,17 +6158,30 @@ _refillNewsDeck(sentiment) {
                         'pol','powerGov','missions','elitePerks','activePosition','adBoost',
                         'startups','settings'];
                     for(const k of fields) { if(s[k] !== undefined) this[k] = s[k]; }
-                    // Assets : restaurer seulement owned/cost
                     if(s.assets && this.assets) {
                         s.assets.forEach((a,i) => { if(this.assets[i]) { this.assets[i].owned=a.owned||0; this.assets[i].cost=a.cost||this.assets[i].cost; }});
                     }
                     if(s.txLog) this.txLog = s.txLog;
-                    // Sync detailedStats depuis l'état
                     if(this.detailedStats) {
                         this.detailedStats.prestige = this.prestige;
                         this.detailedStats.elitePerks = this.elitePerks;
                     }
-                } catch(e) { console.warn('_loadState error:', e); }
+                } catch(e) { console.warn('_applyState error:', e); }
+            },
+
+            // Appelé après un pull cloud : compare timestamps et charge le plus récent
+            reloadFromStorage() {
+                try {
+                    const raw = localStorage.getItem(this._STATE_KEY);
+                    if(!raw) return;
+                    const s = JSON.parse(raw);
+                    if(!s || !s._ts) return;
+                    this._applyState(s);
+                    this.updateUI();
+                    try { this.updateNameDisplay(); } catch(e) {}
+                    try { this.updateAvatarDisplay(); } catch(e) {}
+                    this.spawnPop(window.innerWidth/2, window.innerHeight/3, '☁️ Sauvegarde synchronisée !');
+                } catch(e) { console.warn('reloadFromStorage error:', e); }
             },
 
             _saveOfflineSnapshot() {
@@ -16910,6 +16930,7 @@ this.showGameModal({
         (function(){
           function flush(){
             try { if(window.game && typeof window.game.syncLeaderboard === 'function') window.game.syncLeaderboard(true, true); } catch(e) {}
+            try { if(window.game && typeof window.game._saveState === 'function') window.game._saveState(); } catch(e) {}
             try { if(window.CloudSync && window.CloudSync.configured && window.CloudSync.user && window.CloudSync.user.id) window.CloudSync.pushSave(window.CloudSync.user.id); } catch(e) {}
           }
           window.addEventListener('pagehide', flush);
@@ -17468,9 +17489,26 @@ window.addEventListener('load', () => {
                 .then(function(res) {
                     var row = res.data;
                     if(!row || !row.data) return false;
-                    ['detailedStats','ct_txlog','ct_skills','ct_themes','playerName','avatarIdx','gameSettings','ct_gamestate_v1'].forEach(function(k) {
-                        if(row.data[k]) try { localStorage.setItem(k, row.data[k]); } catch(e) {}
+                    var cloudData = row.data;
+                    // Comparer timestamps : cloud vs local
+                    var cloudState = null, localState = null;
+                    try { cloudState = cloudData['ct_gamestate_v1'] ? JSON.parse(cloudData['ct_gamestate_v1']) : null; } catch(e) {}
+                    try { var lr = localStorage.getItem('ct_gamestate_v1'); localState = lr ? JSON.parse(lr) : null; } catch(e) {}
+                    var cloudTs = (cloudState && cloudState._ts) ? cloudState._ts : 0;
+                    var localTs = (localState && localState._ts) ? localState._ts : 0;
+                    // Toujours écrire les clés non-état (stats, settings)
+                    ['detailedStats','ct_txlog','ct_skills','ct_themes','playerName','avatarIdx','gameSettings'].forEach(function(k) {
+                        if(cloudData[k]) try { localStorage.setItem(k, cloudData[k]); } catch(e) {}
                     });
+                    // N'écrire l'état de jeu que si le cloud est plus récent
+                    if(cloudTs > localTs && cloudData['ct_gamestate_v1']) {
+                        try { localStorage.setItem('ct_gamestate_v1', cloudData['ct_gamestate_v1']); } catch(e) {}
+                        console.log('[CloudSync] Cloud plus récent (' + new Date(cloudTs).toLocaleTimeString() + '), état cloud appliqué');
+                        return true; // déclenche reloadFromStorage
+                    } else if(localTs > 0) {
+                        console.log('[CloudSync] Local plus récent (' + new Date(localTs).toLocaleTimeString() + '), état local conservé');
+                        return false; // pas de reload nécessaire
+                    }
                     return true;
                 }).catch(function() { return false; });
         }
