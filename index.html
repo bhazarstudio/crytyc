@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV263</title>
+    <title>CryptoV264</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -4587,6 +4587,8 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                     // Écrire TOUTES les clés du cloud dans localStorage
                     var cloudData = row.data;
                     SAVE_KEYS.forEach(function(k) {
+                        // Ne pas écraser ct_history — chaque appareil garde son historique graphique
+                        if(k === 'ct_history') return;
                         if(cloudData[k]) try { localStorage.setItem(k, cloudData[k]); } catch(e) {}
                     });
                     console.log('%c[CloudSync] ☁️ Cloud chargé et appliqué', 'color:lime');
@@ -6338,8 +6340,7 @@ _refillNewsDeck(sentiment) {
                         marketState: this.marketState,
                         cycleTimer: this.cycleTimer,
 
-                        history: this.history ? this.history.slice(-500) : [],
-                        historyIncome: this.historyIncome ? this.historyIncome.slice(-500) : [],
+
                         txLog: this.txLog ? this.txLog.slice(-50) : [],
                         skillPts: this.skillPts,
                         unlockedSkills: this.unlockedSkills,
@@ -6400,10 +6401,6 @@ _refillNewsDeck(sentiment) {
                         s.assets.forEach((a,i) => { if(this.assets[i]) { this.assets[i].owned=a.owned||0; this.assets[i].cost=a.cost||this.assets[i].cost; }});
                     }
                     if(s.txLog) this.txLog = s.txLog;
-                    // History : prendre le plus long (local ou cloud)
-                    if(s.history && s.history.length > (this.history ? this.history.length : 0)) {
-                        this.history = s.history;
-                    }
                     if(s.historyIncome && s.historyIncome.length > (this.historyIncome ? this.historyIncome.length : 0)) {
                         this.historyIncome = s.historyIncome;
                     }
