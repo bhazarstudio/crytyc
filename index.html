@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV271</title>
+    <title>CryptoV272</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -4718,19 +4718,27 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                         console.log('%c[CloudSync] Realtime: ' + status, 'color:cyan');
                         if(err) console.warn('[CloudSync] Realtime err:', err);
                         if(status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-                            // Fallback: polling toutes les 3s
-                            console.log('%c[CloudSync] Fallback polling 3s', 'color:orange');
+                            console.log('%c[CloudSync] Fallback polling 5s', 'color:orange');
                             setInterval(function() {
-                                window.CloudSync.pullAndApply(uid);
-                            }, 3000);
+                                // Pull léger : seulement les prix via applyRealtimeData
+                                _sb.from('saves').select('data').eq('uid', uid).single()
+                                    .then(function(res) {
+                                        if(res && res.data && res.data.data) window.CloudSync.applyRealtimeData(res.data.data);
+                                    }).catch(function(){});
+                            }, 5000);
                         }
                     });
                 } catch(e) {
                     console.warn('[CloudSync] startRealtime crash:', e);
-                    // Fallback polling
+                    // Fallback polling léger
                     setInterval(function() {
-                        try { window.CloudSync.pullAndApply(uid); } catch(e2) {}
-                    }, 3000);
+                        try {
+                            _sb.from('saves').select('data').eq('uid', uid).single()
+                                .then(function(res) {
+                                    if(res && res.data && res.data.data) window.CloudSync.applyRealtimeData(res.data.data);
+                                }).catch(function(){});
+                        } catch(e2) {}
+                    }, 5000);
                 }
             }
         };
@@ -6239,14 +6247,7 @@ _refillNewsDeck(sentiment) {
                     } else {
                         startAudio();
                         this._checkOfflineEarnings();
-                        // Pull cloud au retour en foreground pour récupérer les changements de l'autre appareil
-                        try {
-                            if(window.CloudSync && window.CloudSync.user && !window.CloudSync.user.is_anonymous) {
-                                window.CloudSync.pullAndApply(window.CloudSync.user.id).then(hadCloud => {
-                                    if(hadCloud && window.game) window.game.reloadFromStorage();
-                                });
-                            }
-                        } catch(e) {}
+                        // Realtime sync les prix — pas besoin de pullAndApply au retour
                     }
                 });
 
@@ -9539,7 +9540,7 @@ const step1 = document.getElementById('trade-step-1');
                 if(!this.crew) return;
                 try {
                     const sb = this._getSupabase(); if(!sb) return;
-                    const {data} = await sb.from('crew_messages').select('created_at').eq('crew_id', this.crew.id).order('created_at',{ascending:false}).limit(1);
+                    const {data} = await sb.from('crew_messages').select('created_at, uid').eq('crew_id', this.crew.id).order('created_at',{ascending:false}).limit(1);
                     if(!data || !data.length) return;
                     const ms = new Date(data[0].created_at).getTime();
                     const lr = parseInt(localStorage.getItem('crew_lastRead_'+this.crew.id)||'0');
@@ -9548,7 +9549,9 @@ const step1 = document.getElementById('trade-step-1');
                         try { localStorage.setItem('crew_lastMsg_'+this.crew.id, ms.toString()); } catch(e) {}
                     }
                     // Badge si nouveau message non lu
-                    const hasUnread = ms > lr;
+                    const lastMsgUid = data[0].uid || null;
+        const myUid = window.CloudSync && window.CloudSync.user ? window.CloudSync.user.id : null;
+        const hasUnread = ms > lr && lastMsgUid !== myUid;
                     const badge = document.querySelector('.crew-tab-badge');
                     if(badge) badge.style.display = hasUnread ? 'inline-block' : 'none';
                     const plusBtn = document.querySelector('.nav-btn[onclick*="tab(\'plus\'"]') ||
