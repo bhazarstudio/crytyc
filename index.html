@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV239</title>
+    <title>CryptoV240</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -3598,6 +3598,13 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
       };
     </script>
 
+  <!-- PWA -->
+  <link rel="manifest" href="data:application/json,{&quot;name&quot;:&quot;Crypto%20Tycoon&quot;,&quot;short_name&quot;:&quot;CryTyc&quot;,&quot;start_url&quot;:&quot;/&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%23000000&quot;,&quot;theme_color&quot;:&quot;%23ff6600&quot;,&quot;icons&quot;:[{&quot;src&quot;:&quot;data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23ff6600'/><text y='.9em' font-size='80' x='10'>₿</text></svg>&quot;,&quot;sizes&quot;:&quot;any&quot;,&quot;type&quot;:&quot;image/svg+xml&quot;}]}">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="CryTyc">
+  <meta name="theme-color" content="#ff6600">
 </head>
 <body>
 
@@ -3802,7 +3809,7 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                 <div class="dashboard-grid">
                 <div id="slot-invest"></div>
                 <div id="slot-power"></div>
-                <div class="app-card app-crew" onclick="game.openApp('crew')"><span class="app-icon">👥</span><span class="app-name">CREW</span></div>
+                <div class="app-card app-crew" onclick="game.openApp('crew')" style="position:relative;"><span class="app-icon">👥</span><span class="app-name">CREW</span><span class="crew-tab-badge" style="display:none;position:absolute;top:4px;right:4px;width:10px;height:10px;border-radius:50%;background:#ff3333;"></span></div>
                 <div class="app-card app-assets" onclick="game.openApp('assets')"><span class="app-icon">🏢</span><span class="app-name">ACTIFS</span></div>
                 <div class="app-card app-casino" id="card-casino" onclick="game.openApp('casino')"><span class="app-icon" id="icon-casino">🔒</span><span class="app-name">TRADING</span></div>
                 <div class="app-card app-bank" onclick="game.openApp('bank')"><span class="app-icon">🏦</span><span class="app-name">BANQUE</span></div>
@@ -4598,7 +4605,7 @@ const firebaseConfig = window._firebaseConfig || {
                 enabled: false,
                 uid: null,
                 lastSync: 0,
-                syncEveryMs: 60000,
+                syncEveryMs: 30000,
                 lastLoad: 0,
                 botRetireThreshold: 50,
                 bots: [
@@ -5224,6 +5231,8 @@ const firebaseConfig = window._firebaseConfig || {
                 setInterval(() => this.tick(), 1000);
                 this.startSuspicionLoop();
                 setInterval(() => this.fastTick(), 50);
+                // Polling crew chat toutes les 15s
+                setInterval(() => this._pollCrewChat(), 15000);
             },
 
             setFirstName() {
@@ -5968,6 +5977,8 @@ _refillNewsDeck(sentiment) {
                     if (document.hidden) {
                         stopAudio();
                         this._saveOfflineSnapshot();
+                        // Force cloud push immédiat quand l'app passe en arrière-plan
+                        try { if(window.CloudSync && window.CloudSync.user && !window.CloudSync.user.is_anonymous) window.CloudSync.pushSave(window.CloudSync.user.id); } catch(e) {}
                     } else {
                         startAudio();
                         this._checkOfflineEarnings();
@@ -9116,6 +9127,28 @@ const step1 = document.getElementById('trade-step-1');
                 if(!this.crew) return;
                 try { const lm=localStorage.getItem('crew_lastMsg_'+this.crew.id)||Date.now().toString(); localStorage.setItem('crew_lastRead_'+this.crew.id, lm); } catch(e) {}
             },
+            async _pollCrewChat() {
+                if(!this.crew) return;
+                try {
+                    const sb = this._getSupabase(); if(!sb) return;
+                    const {data} = await sb.from('crew_messages').select('created_at').eq('crew_id', this.crew.id).order('created_at',{ascending:false}).limit(1);
+                    if(!data || !data.length) return;
+                    const ms = new Date(data[0].created_at).getTime();
+                    const lr = parseInt(localStorage.getItem('crew_lastRead_'+this.crew.id)||'0');
+                    const lm = parseInt(localStorage.getItem('crew_lastMsg_'+this.crew.id)||'0');
+                    if(ms > lm) {
+                        try { localStorage.setItem('crew_lastMsg_'+this.crew.id, ms.toString()); } catch(e) {}
+                    }
+                    // Badge si nouveau message non lu
+                    const hasUnread = ms > lr;
+                    const badge = document.querySelector('.crew-tab-badge');
+                    if(badge) badge.style.display = hasUnread ? 'inline-block' : 'none';
+                    // Si le chat est ouvert, refresh automatique
+                    const msgsEl = document.getElementById('crew-chat-msgs');
+                    if(msgsEl && this._crewTab === 'chat') await this._loadCrewChat();
+                } catch(e) {}
+            },
+
             async _checkCrewUnread() {
                 if(!this.crew) return;
                 try { const sb=this._getSupabase(); if(!sb) return; const {data}=await sb.from('crew_messages').select('created_at').eq('crew_id',this.crew.id).order('created_at',{ascending:false}).limit(1); if(data&&data.length>0) { const ms=new Date(data[0].created_at).getTime(); try{localStorage.setItem('crew_lastMsg_'+this.crew.id,ms.toString());}catch(e){} } } catch(e) {}
@@ -9645,6 +9678,8 @@ const step1 = document.getElementById('trade-step-1');
                                             : `EMPIRE VENDU : +${pointsGagnes} PTS`;
                                         this.spawnPop(window.innerWidth/2, window.innerHeight/2, popMsg, true);
                         this.playSound('overclock');
+                        // Sync classement immédiat après IPO
+                        try { this.syncLeaderboard(true); } catch(e) {}
                     }
                 });
                 return;
@@ -16619,6 +16654,7 @@ polTickerQueue: ["INITIALISATION DU SYSTÈME...", "EN ATTENTE DES PREMIERS RÉSU
                 if(this.pol.votes > this.pol.rivalScore) {
                     // --- STATS ---
 this.detailedStats.electionsWon++;
+try { this.syncLeaderboard(true); } catch(e) {}
 if(this.pol.targetPost > this.detailedStats.highestPost) {
     this.detailedStats.highestPost = this.pol.targetPost;
 }
@@ -17367,7 +17403,7 @@ window.addEventListener('load', () => {
         var _pushTimer = null;
         function schedulePush(uid) {
             clearTimeout(_pushTimer);
-            _pushTimer = setTimeout(function() { pushSave(uid); }, 4000);
+            _pushTimer = setTimeout(function() { pushSave(uid); }, 1000);
         }
 
         window.CloudSync = {
