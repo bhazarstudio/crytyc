@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV245</title>
+    <title>CryptoV246</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -5239,6 +5239,7 @@ const firebaseConfig = window._firebaseConfig || {
                         if(window.CloudSync && window.CloudSync.user && !window.CloudSync.user.is_anonymous) {
                             this._saveState();
                             window.CloudSync.pushSave(window.CloudSync.user.id);
+                            console.log('%c[CloudSync] ⬆ Push cloud ' + new Date().toLocaleTimeString(), 'color:cyan');
                         }
                     } catch(e) {}
                 }, 60000);
@@ -6136,6 +6137,13 @@ _refillNewsDeck(sentiment) {
                         powerLevel: this.powerLevel,
                         turboLevel: this.turboLevel,
                         wallet: this.wallet,
+                        prices: this.prices,
+                        targetPrices: this.targetPrices,
+                        cycleTargets: this.cycleTargets,
+                        marketState: this.marketState,
+                        cycleTimer: this.cycleTimer,
+                        history: this.history ? this.history.slice(-200) : [],
+                        historyIncome: this.historyIncome ? this.historyIncome.slice(-200) : [],
                         txLog: this.txLog ? this.txLog.slice(-50) : [],
                         skillPts: this.skillPts,
                         unlockedSkills: this.unlockedSkills,
@@ -6171,7 +6179,8 @@ _refillNewsDeck(sentiment) {
                     const fields = ['cash','loan','level','day','reputation','prestige','maxNet',
                         'totalMined','tradeCount','airdropCount','overclock','overclockActive',
                         'periphLevel','algoLevel','machineLevel','coolingLevel','powerLevel',
-                        'turboLevel','wallet','skillPts','unlockedSkills','username','avatarIdx',
+                        'turboLevel','wallet','prices','targetPrices','cycleTargets','marketState',
+                        'cycleTimer','skillPts','unlockedSkills','username','avatarIdx',
                         'pol','powerGov','missions','elitePerks','activePosition','adBoost',
                         'startups','settings'];
                     for(const k of fields) { if(s[k] !== undefined) this[k] = s[k]; }
@@ -6179,6 +6188,8 @@ _refillNewsDeck(sentiment) {
                         s.assets.forEach((a,i) => { if(this.assets[i]) { this.assets[i].owned=a.owned||0; this.assets[i].cost=a.cost||this.assets[i].cost; }});
                     }
                     if(s.txLog) this.txLog = s.txLog;
+                    if(s.history && s.history.length > 1) this.history = s.history;
+                    if(s.historyIncome && s.historyIncome.length > 1) this.historyIncome = s.historyIncome;
                     if(this.detailedStats) {
                         this.detailedStats.prestige = this.prestige;
                         this.detailedStats.elitePerks = this.elitePerks;
@@ -17521,10 +17532,10 @@ window.addEventListener('load', () => {
                     // N'écrire l'état de jeu que si le cloud est plus récent
                     if(cloudTs > localTs && cloudData['ct_gamestate_v1']) {
                         try { localStorage.setItem('ct_gamestate_v1', cloudData['ct_gamestate_v1']); } catch(e) {}
-                        console.log('[CloudSync] Cloud plus récent (' + new Date(cloudTs).toLocaleTimeString() + '), état cloud appliqué');
+                        console.log('%c[CloudSync] ☁️ Cloud plus récent ' + new Date(cloudTs).toLocaleTimeString() + ' > local ' + new Date(localTs).toLocaleTimeString() + ' → état cloud appliqué', 'color:lime');
                         return true; // déclenche reloadFromStorage
                     } else if(localTs > 0) {
-                        console.log('[CloudSync] Local plus récent (' + new Date(localTs).toLocaleTimeString() + '), état local conservé');
+                        console.log('%c[CloudSync] 💾 Local plus récent ' + new Date(localTs).toLocaleTimeString() + ' > cloud ' + new Date(cloudTs).toLocaleTimeString() + ' → état local conservé', 'color:orange');
                         return false; // pas de reload nécessaire
                     }
                     return true;
