@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV269</title>
+    <title>CryptoV270</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -1372,8 +1372,36 @@ input[type=range]#loan-slider::-moz-range-thumb {
             box-shadow: 0 0 5px var(--use-blue);
             animation: pulse-blue 1s infinite;
         }
+        .nav-btn.has-notif-green::before {
+            content: '';
+            position: absolute;
+            top: 8px;
+            right: 20px;
+            width: 10px;
+            height: 10px;
+            background: #00e676;
+            border-radius: 50%;
+            border: 2px solid #111;
+            box-shadow: 0 0 5px #00e676;
+            animation: pulse-blue 1s infinite;
+        }
+        .nav-btn.has-notif-orange::before {
+            content: '';
+            position: absolute;
+            top: 8px;
+            right: 20px;
+            width: 10px;
+            height: 10px;
+            background: #ff8833;
+            border-radius: 50%;
+            border: 2px solid #111;
+            box-shadow: 0 0 5px #ff8833;
+            animation: pulse-blue 1s infinite;
+        }
         @media (max-width: 380px) {
             .nav-btn.has-notif::before { right: 10px; }
+            .nav-btn.has-notif-green::before { right: 10px; }
+            .nav-btn.has-notif-orange::before { right: 10px; }
         }
         /* --- STYLE POLITIQUE (V6 - ÉVOLUTION DU POUVOIR) --- */
         .post-card {
@@ -9519,6 +9547,12 @@ const step1 = document.getElementById('trade-step-1');
                     const hasUnread = ms > lr;
                     const badge = document.querySelector('.crew-tab-badge');
                     if(badge) badge.style.display = hasUnread ? 'inline-block' : 'none';
+                    const plusBtn = document.querySelector('.nav-btn[onclick*="tab(\'plus\'"]') ||
+                        Array.from(document.querySelectorAll('.nav-btn')).find(b => (b.querySelector('.nav-label')?.innerText||'').trim() === 'Plus');
+                    if(plusBtn) {
+                        if(hasUnread) plusBtn.classList.add('has-notif-orange');
+                        else plusBtn.classList.remove('has-notif-orange');
+                    }
                     // Si le chat est ouvert, refresh automatique
                     const msgsEl = document.getElementById('crew-chat-msgs');
                     if(msgsEl && this._crewTab === 'chat') await this._loadCrewChat();
@@ -9801,8 +9835,8 @@ const step1 = document.getElementById('trade-step-1');
                             Array.from(document.querySelectorAll('.nav-btn')).find(b => b.querySelector('.nav-label')?.textContent?.trim() === 'Bonus');
                 if(!btn) return;
                 const hasPending = this.missions && this.missions.some(m => !m.claimed && (m.progress || 0) >= (m.target || 1));
-                if(hasPending) btn.classList.add('has-notif');
-                else btn.classList.remove('has-notif');
+                if(hasPending) btn.classList.add('has-notif-green');
+                else btn.classList.remove('has-notif-green');
             },
 
             watchAdMission(idx) {
