@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV248</title>
+    <title>CryptoV249</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -6141,8 +6141,12 @@ _refillNewsDeck(sentiment) {
                         powerLevel: this.powerLevel,
                         turboLevel: this.turboLevel,
                         wallet: this.wallet,
-                        history: this.history ? this.history.slice(-200) : [],
-                        historyIncome: this.historyIncome ? this.historyIncome.slice(-200) : [],
+                        prices: this.prices,
+                        targetPrices: this.targetPrices,
+                        cycleTargets: this.cycleTargets,
+                        marketState: this.marketState,
+                        cycleTimer: this.cycleTimer,
+
                         txLog: this.txLog ? this.txLog.slice(-50) : [],
                         skillPts: this.skillPts,
                         unlockedSkills: this.unlockedSkills,
@@ -6178,7 +6182,7 @@ _refillNewsDeck(sentiment) {
                     const fields = ['cash','loan','level','day','reputation','prestige','maxNet',
                         'totalMined','tradeCount','airdropCount','overclock','overclockActive',
                         'periphLevel','algoLevel','machineLevel','coolingLevel','powerLevel',
-                        'turboLevel','wallet','skillPts','unlockedSkills','username','avatarIdx',
+                        'turboLevel','wallet','prices','targetPrices','cycleTargets','marketState','cycleTimer','skillPts','unlockedSkills','username','avatarIdx',
                         'pol','powerGov','missions','elitePerks','activePosition','adBoost',
                         'startups','settings'];
                     for(const k of fields) { if(s[k] !== undefined) this[k] = s[k]; }
@@ -6186,8 +6190,6 @@ _refillNewsDeck(sentiment) {
                         s.assets.forEach((a,i) => { if(this.assets[i]) { this.assets[i].owned=a.owned||0; this.assets[i].cost=a.cost||this.assets[i].cost; }});
                     }
                     if(s.txLog) this.txLog = s.txLog;
-                    if(s.history && s.history.length > 1) this.history = s.history;
-                    if(s.historyIncome && s.historyIncome.length > 1) this.historyIncome = s.historyIncome;
                     if(this.detailedStats) {
                         this.detailedStats.prestige = this.prestige;
                         this.detailedStats.elitePerks = this.elitePerks;
