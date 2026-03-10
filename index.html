@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV258</title>
+    <title>CryptoV259</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -4545,9 +4545,12 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
             window.dispatchEvent(new Event('cloudsync-ready'));
             return;
         }
-        var _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+        var _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
+            realtime: { params: { eventsPerSecond: 10 } }
+        });
         var SAVE_KEYS = ['detailedStats','ct_txlog','ct_skills','ct_themes',
                          'playerName','avatarIdx','gameSettings','ct_offline_snap','ct_gamestate_v1','ct_history'];
+        var _realtimeChannel = null;
 
         function getSaveData() {
             var data = {};
@@ -4616,30 +4619,42 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                     .then(function(res) { if(res.error) throw res.error; return res.data.user; });
             },
             logout: function() { return _sb.auth.signOut(); },
-            // Pull léger : ne synchronise que les prix (pas tout l'état)
-            pullPrices: function(uid) {
-                return _sb.from('saves').select('data').eq('uid', uid).single()
-                    .then(function(res) {
-                        var row = res.data;
-                        if(!row || !row.data || !row.data['ct_gamestate_v1']) return;
-                        var s = null;
-                        try { s = JSON.parse(row.data['ct_gamestate_v1']); } catch(e) { return; }
-                        if(!s || !window.game) return;
-                        // Appliquer seulement les prix si la save cloud est plus récente
-                        var localTs = 0;
-                        try { var lr = localStorage.getItem('ct_gamestate_v1'); if(lr) localTs = JSON.parse(lr)._ts || 0; } catch(e) {}
-                        if(s._ts <= localTs) return; // on est plus récent, rien à faire
-                        // Sync prix
-                        if(s.prices) window.game.prices = s.prices;
-                        if(s.targetPrices) window.game.targetPrices = s.targetPrices;
-                        if(s.cycleTargets) window.game.cycleTargets = s.cycleTargets;
-                        if(s.marketState) window.game.marketState = s.marketState;
-                        if(s.cycleTimer) window.game.cycleTimer = s.cycleTimer;
-                        // Sync wallet et cash si cloud plus récent
-                        if(s.cash !== undefined) window.game.cash = s.cash;
-                        if(s.wallet) window.game.wallet = s.wallet;
-                        if(s.loan !== undefined) window.game.loan = s.loan;
-                    }).catch(function() {});
+            // Applique les données reçues en temps réel (prix + état)
+            applyRealtimeData: function(cloudData) {
+                try {
+                    if(!cloudData || !cloudData['ct_gamestate_v1'] || !window.game) return;
+                    var s = JSON.parse(cloudData['ct_gamestate_v1']);
+                    if(!s) return;
+                    // Appliquer prix, wallet, cash immédiatement
+                    if(s.prices) window.game.prices = s.prices;
+                    if(s.targetPrices) window.game.targetPrices = s.targetPrices;
+                    if(s.cycleTargets) window.game.cycleTargets = s.cycleTargets;
+                    if(s.marketState) window.game.marketState = s.marketState;
+                    if(s.cycleTimer != null) window.game.cycleTimer = s.cycleTimer;
+                    if(s.cash != null) window.game.cash = s.cash;
+                    if(s.wallet) window.game.wallet = s.wallet;
+                    if(s.loan != null) window.game.loan = s.loan;
+                    if(s.day != null) window.game.day = s.day;
+                } catch(e) { console.warn('applyRealtimeData:', e); }
+            },
+            // Démarrer Realtime pour sync instantanée entre appareils
+            startRealtime: function(uid) {
+                if(_realtimeChannel) { _sb.removeChannel(_realtimeChannel); }
+                _realtimeChannel = _sb.channel('saves:' + uid)
+                    .on('postgres_changes', {
+                        event: 'UPDATE',
+                        schema: 'public',
+                        table: 'saves',
+                        filter: 'uid=eq.' + uid
+                    }, function(payload) {
+                        console.log('%c[CloudSync] 🔄 Realtime reçu !', 'color:lime');
+                        if(payload.new && payload.new.data) {
+                            window.CloudSync.applyRealtimeData(payload.new.data);
+                        }
+                    })
+                    .subscribe(function(status) {
+                        console.log('%c[CloudSync] Realtime: ' + status, 'color:cyan');
+                    });
             }
         };
 
@@ -4652,6 +4667,8 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                 window.dispatchEvent(new CustomEvent('cloudsync-auth', { detail: user }));
                 if(window.game && window.game.renderAccountUI) window.game.renderAccountUI();
                 window.dispatchEvent(new Event('cloudsync-ready'));
+                // Démarrer la sync Realtime après le pull initial
+                window.CloudSync.startRealtime(user.id);
             });
         }
 
@@ -5383,15 +5400,15 @@ const firebaseConfig = window._firebaseConfig || {
                 setInterval(() => this.fastTick(), 50);
                 // Polling crew chat toutes les 15s
                 setInterval(() => this._pollCrewChat(), 15000);
-                // Push + Pull toutes les 1s pour sync des prix en temps réel
+                // Push cloud toutes les 10s (backup)
                 setInterval(() => {
                     try {
                         if(window.CloudSync && window.CloudSync.user && !window.CloudSync.user.is_anonymous) {
+                            this._saveState();
                             window.CloudSync.pushSave(window.CloudSync.user.id);
-                            window.CloudSync.pullPrices(window.CloudSync.user.id);
                         }
                     } catch(e) {}
-                }, 1000);
+                }, 10000);
             },
 
             setFirstName() {
