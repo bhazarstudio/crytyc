@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV257</title>
+    <title>CryptoV258</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -5383,23 +5383,15 @@ const firebaseConfig = window._firebaseConfig || {
                 setInterval(() => this.fastTick(), 50);
                 // Polling crew chat toutes les 15s
                 setInterval(() => this._pollCrewChat(), 15000);
-                // Pull des prix cloud toutes les 1s (sync inter-appareils)
+                // Push + Pull toutes les 1s pour sync des prix en temps réel
                 setInterval(() => {
                     try {
                         if(window.CloudSync && window.CloudSync.user && !window.CloudSync.user.is_anonymous) {
+                            window.CloudSync.pushSave(window.CloudSync.user.id);
                             window.CloudSync.pullPrices(window.CloudSync.user.id);
                         }
                     } catch(e) {}
                 }, 1000);
-                // Push cloud toutes les 60s (compteur indépendant)
-                setInterval(() => {
-                    try {
-                        if(window.CloudSync && window.CloudSync.user && !window.CloudSync.user.is_anonymous) {
-                            this._saveState();
-                            window.CloudSync.pushSave(window.CloudSync.user.id);
-                        }
-                    } catch(e) {}
-                }, 10000);
             },
 
             setFirstName() {
