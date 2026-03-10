@@ -5233,6 +5233,15 @@ const firebaseConfig = window._firebaseConfig || {
                 setInterval(() => this.fastTick(), 50);
                 // Polling crew chat toutes les 15s
                 setInterval(() => this._pollCrewChat(), 15000);
+                // Push cloud toutes les 60s (compteur indépendant)
+                setInterval(() => {
+                    try {
+                        if(window.CloudSync && window.CloudSync.user && !window.CloudSync.user.is_anonymous) {
+                            this._saveState();
+                            window.CloudSync.pushSave(window.CloudSync.user.id);
+                        }
+                    } catch(e) {}
+                }, 60000);
             },
 
             setFirstName() {
@@ -8718,7 +8727,7 @@ const step1 = document.getElementById('trade-step-1');
                 el.innerHTML = '<div style="text-align:center;color:#333;padding:60px;font-size:0.8em;">⏳ Chargement…</div>';
                 try {
                     const sb = this._getSupabase();
-                    const uid = this._getMyUid();
+                    const uid = this.leaderboard?.uid;
                     if(sb && uid) {
                         const { data } = await sb.from('crews').select('*').contains('member_uids', [uid]).limit(1);
                         if(data && data.length > 0) {
@@ -9307,9 +9316,7 @@ const step1 = document.getElementById('trade-step-1');
                     if(!myUid) { inp.disabled=false; this.spawnPop(window.innerWidth/2,window.innerHeight/2,'⏳ Connexion en cours, réessaie'); return; }
                     const { error } = await sb.from('crew_messages').insert({crew_id:this.crew.id, uid:myUid, name:this.username||'CEO', avatar_idx:this.avatarIdx||0, text});
                     if(error) throw error;
-                    // Après envoi : marquer comme lu avec timestamp futur pour éviter le badge sur son propre message
-                    try { localStorage.setItem('crew_lastRead_'+this.crew.id, (Date.now()+2000).toString()); } catch(e) {}
-                    try { localStorage.setItem('crew_lastMsg_'+this.crew.id, (Date.now()+2000).toString()); } catch(e) {}
+                    this._crewMarkRead();
                     inp.disabled = false;
                     await this._loadCrewChat();
                 } catch(e) { inp.disabled=false; this.spawnPop(window.innerWidth/2,window.innerHeight/2,'\u274C '+e.message); }
@@ -9993,16 +10000,7 @@ this.tickStartups();
                 try { this.syncLeaderboard(false); } catch(e) {}
                 // Sauvegarde locale toutes les 10s
                 if((this.tickCount || 0) % 10 === 0) try { this._saveState(); } catch(e) {}
-                // Push cloud toutes les 60s (compteur global, indépendant du jour)
-                this._cloudTick = (this._cloudTick || 0) + 1;
-                if(this._cloudTick % 60 === 0) {
-                    try {
-                        if(window.CloudSync && window.CloudSync.user && !window.CloudSync.user.is_anonymous) {
-                            this._saveState();
-                            window.CloudSync.pushSave(window.CloudSync.user.id);
-                        }
-                    } catch(e) {}
-                }
+
                 this.oldPrices = {...this.prices};
 
                 // Soupçon (module Pouvoir) : décroît doucement en continu, sans à-coups
