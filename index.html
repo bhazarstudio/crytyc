@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV264</title>
+    <title>CryptoV265</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -4549,7 +4549,7 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
             realtime: { params: { eventsPerSecond: 10 } }
         });
         var SAVE_KEYS = ['detailedStats','ct_txlog','ct_skills','ct_themes',
-                         'playerName','avatarIdx','gameSettings','ct_offline_snap','ct_gamestate_v1','ct_history'];
+                         'playerName','avatarIdx','gameSettings','ct_offline_snap','ct_gamestate_v1','ct_history','ct_coinhistory'];
         var _realtimeChannel = null;
 
         function getSaveData() {
@@ -4587,8 +4587,8 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                     // Écrire TOUTES les clés du cloud dans localStorage
                     var cloudData = row.data;
                     SAVE_KEYS.forEach(function(k) {
-                        // Ne pas écraser ct_history — chaque appareil garde son historique graphique
-                        if(k === 'ct_history') return;
+                        // Ne pas écraser les historiques — chaque appareil garde le sien
+                        if(k === 'ct_history' || k === 'ct_coinhistory') return;
                         if(cloudData[k]) try { localStorage.setItem(k, cloudData[k]); } catch(e) {}
                     });
                     console.log('%c[CloudSync] ☁️ Cloud chargé et appliqué', 'color:lime');
@@ -6365,9 +6365,21 @@ _refillNewsDeck(sentiment) {
                             hi: this.historyIncome ? this.historyIncome.slice(-1000) : []
                         }));
                     } catch(e) {}
+                    // Sauvegarder coinHistory (bougies crypto)
+                    try {
+                        if(this.coinHistory) localStorage.setItem('ct_coinhistory', JSON.stringify(this.coinHistory));
+                    } catch(e) {}
                 } catch(e) {}
             },
             _loadState() {
+                // Restaurer coinHistory
+                try {
+                    const chraw = localStorage.getItem('ct_coinhistory');
+                    if(chraw) {
+                        const ch = JSON.parse(chraw);
+                        if(ch && typeof ch === 'object') this.coinHistory = ch;
+                    }
+                } catch(e) {}
                 // Restaurer history d'abord depuis sa propre clé
                 try {
                     const hraw = localStorage.getItem('ct_history');
