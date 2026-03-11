@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV274</title>
+    <title>CryptoV275</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -4617,12 +4617,16 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                         console.log('%c[CloudSync] Pas de save cloud → local conservé', 'color:orange');
                                                 return;
                     }
-                    // Vérifier timestamp avant d'écraser
+                    // Vérifier priorité IPO puis timestamp
                     var cloudData = row.data;
-                    var cloudTs = 0, localTs = 0;
-                    try { if(cloudData['ct_gamestate_v1']) cloudTs = JSON.parse(cloudData['ct_gamestate_v1'])._ts || 0; } catch(e) {}
-                    try { var lr2 = localStorage.getItem('ct_gamestate_v1'); if(lr2) localTs = JSON.parse(lr2)._ts || 0; } catch(e) {}
-                    if(cloudTs > 0 && cloudTs < localTs) {
+                    var cloudTs = 0, localTs = 0, cloudIpo2 = 0, localIpo2 = 0;
+                    try { if(cloudData['ct_gamestate_v1']) { var cs = JSON.parse(cloudData['ct_gamestate_v1']); cloudTs = cs._ts || 0; cloudIpo2 = cs._ipoCount || 0; } } catch(e) {}
+                    try { var lr2 = localStorage.getItem('ct_gamestate_v1'); if(lr2) { var ls = JSON.parse(lr2); localTs = ls._ts || 0; localIpo2 = ls._ipoCount || 0; } } catch(e) {}
+                    if(cloudIpo2 < localIpo2) {
+                        console.log('%c[CloudSync] Local a plus d\'IPOs → skip', 'color:orange');
+                        return;
+                    }
+                    if(cloudIpo2 === localIpo2 && cloudTs > 0 && cloudTs < localTs) {
                         console.log('%c[CloudSync] Local plus récent → skip', 'color:orange');
                         return;
                     }
@@ -4672,10 +4676,14 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                     if(window.game._realtimeBlockUntil && Date.now() < window.game._realtimeBlockUntil) return;
                     var s = JSON.parse(cloudData['ct_gamestate_v1']);
                     if(!s) return;
-                    // Vérifier timestamp : n'appliquer que si cloud > local
+                    // Priorité IPO : refuser si le cloud a moins d'IPOs que le local
+                    var localIpo = (window.game.detailedStats && window.game.detailedStats.ipoCount) || 0;
+                    var cloudIpo = s._ipoCount || 0;
+                    if(cloudIpo < localIpo) return; // local a plus d'IPOs → priorité absolue
+                    // Vérifier timestamp : n'appliquer que si cloud > local (sauf si même nb d'IPOs)
                     var localTs = window.game._lastSaveTs || 0;
                     var cloudTs = s._ts || 0;
-                    if(cloudTs <= localTs) return; // local plus récent, on ignore
+                    if(cloudIpo === localIpo && cloudTs <= localTs) return;
                     // Bougies de transition pour les prix qui changent
                     if(s.prices && window.game.coinHistory) {
                         for(var coin in s.prices) {
@@ -6365,6 +6373,7 @@ _refillNewsDeck(sentiment) {
                     const s = {
                         cash: this.cash,
                         loan: this.loan,
+                        _ipoCount: this.detailedStats ? (this.detailedStats.ipoCount || 0) : 0,
                         level: this.level,
                         day: this.day,
                         reputation: this.reputation,
@@ -10102,9 +10111,8 @@ const step1 = document.getElementById('trade-step-1');
                                             : `EMPIRE VENDU : +${pointsGagnes} PTS`;
                                         this.spawnPop(window.innerWidth/2, window.innerHeight/2, popMsg, true);
                         this.playSound('overclock');
-                        // Push cloud immédiat + bloc Realtime entrant 10s
+                        // Push cloud immédiat après IPO (priorité garantie par _ipoCount)
                         this._saveState();
-                        this._realtimeBlockUntil = Date.now() + 10000;
                         try { if(window.CloudSync && window.CloudSync.user) window.CloudSync.pushSave(window.CloudSync.user.id); } catch(e) {}
                         // Sync classement immédiat après IPO
                         try { this.syncLeaderboard(true); } catch(e) {}
