@@ -4758,31 +4758,10 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                     if(el) el.textContent = count;
                     if(count <= 0) {
                         clearInterval(timer);
-                        // Déconnexion réelle
+                        // Déconnexion + effacement TOTAL du localStorage
                         try { _sb.auth.signOut(); } catch(e) {}
-                        try { localStorage.removeItem('ct_session_ts'); } catch(e) {}
-                        // Remplacer le countdown par un bouton de reconnexion
-                        // Reset état jeu : garder uniquement pseudo et avatar
-                        if(window.game) {
-                            var savedName = window.game.username || '';
-                            var savedAvatar = window.game.avatarIdx || 0;
-                            // Vider localStorage sauf pseudo/avatar
-                            try {
-                                localStorage.removeItem('ct_gamestate_v1');
-                                localStorage.removeItem('ct_history');
-                                localStorage.removeItem('ct_coinhistory');
-                                localStorage.removeItem('ct_session_ts');
-                                localStorage.removeItem('detailedStats');
-                                localStorage.removeItem('ct_skills');
-                                localStorage.removeItem('ct_txlog');
-                            } catch(e) {}
-                            // Restaurer pseudo et avatar
-                            try {
-                                localStorage.setItem('playerName', savedName);
-                                localStorage.setItem('avatarIdx', String(savedAvatar));
-                            } catch(e) {}
-                        }
-                        // Afficher bouton reconnexion (pas de reload auto)
+                        try { localStorage.clear(); } catch(e) {}
+                        // Afficher bouton reconnexion
                         var overlay = document.getElementById('session-conflict-overlay');
                         if(overlay) {
                             overlay.innerHTML = '<div style="text-align:center;color:#fff;padding:32px;max-width:320px">'
