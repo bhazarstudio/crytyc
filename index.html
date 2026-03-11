@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV278</title>
+    <title>CryptoV276</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -4671,22 +4671,6 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                     .then(function(res) { if(res.error) throw res.error; return res.data.user; });
             },
             logout: function() { return _sb.auth.signOut(); },
-            // Push léger des prix uniquement (toutes les 5s)
-            pushPrices: function(uid) {
-                if(!uid || !window.game) return;
-                try {
-                    var priceData = {
-                        prices: window.game.prices,
-                        targetPrices: window.game.targetPrices,
-                        cycleTargets: window.game.cycleTargets,
-                        marketState: window.game.marketState,
-                        cycleTimer: window.game.cycleTimer,
-                        _ts: Date.now()
-                    };
-                    _sb.from('saves').upsert({ uid: uid + '_prices', data: { ct_prices: JSON.stringify(priceData) }, saved_at: new Date().toISOString() })
-                        .catch(function(){});
-                } catch(e) {}
-            },
             // Applique les données reçues en temps réel (prix + état)
             applyRealtimeData: function(cloudData) {
                 try {
@@ -4733,30 +4717,11 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                         table: 'saves',
                         filter: 'uid=eq.' + uid
                     }, function(payload) {
-                        console.log('%c[CloudSync] 🔄 Realtime état reçu', 'color:lime');
+                        console.log('%c[CloudSync] 🔄 Realtime reçu !', 'color:lime');
                         try {
                             var d = (payload.new && payload.new.data) ? payload.new.data : null;
                             if(d) window.CloudSync.applyRealtimeData(d);
                         } catch(e) { console.warn('Realtime apply:', e); }
-                    })
-                    .on('postgres_changes', {
-                        event: '*',
-                        schema: 'public',
-                        table: 'saves',
-                        filter: 'uid=eq.' + uid + '_prices'
-                    }, function(payload) {
-                        try {
-                            var d = payload.new && payload.new.data && payload.new.data.ct_prices;
-                            if(!d || !window.game) return;
-                            var p = JSON.parse(d);
-                            if(!p) return;
-                            // Appliquer seulement les prix — jamais le cash/wallet
-                            if(p.prices) window.game.prices = p.prices;
-                            if(p.targetPrices) window.game.targetPrices = p.targetPrices;
-                            if(p.cycleTargets) window.game.cycleTargets = p.cycleTargets;
-                            if(p.marketState) window.game.marketState = p.marketState;
-                            if(p.cycleTimer != null) window.game.cycleTimer = p.cycleTimer;
-                        } catch(e) {}
                     })
                     .subscribe(function(status, err) {
                         console.log('%c[CloudSync] Realtime: ' + status, 'color:cyan');
@@ -5527,11 +5492,12 @@ const firebaseConfig = window._firebaseConfig || {
                 setInterval(() => this.fastTick(), 50);
                 // Polling crew chat toutes les 15s
                 setInterval(() => this._pollCrewChat(), 15000);
-                // Push des prix toutes les 5s (sync inter-appareils, sans toucher cash/wallet)
+                // Push cloud toutes les 5s
                 setInterval(() => {
                     try {
                         if(window.CloudSync && window.CloudSync.user && !window.CloudSync.user.is_anonymous) {
-                            window.CloudSync.pushPrices(window.CloudSync.user.id);
+                            this._saveState();
+                            window.CloudSync.pushSave(window.CloudSync.user.id);
                         }
                     } catch(e) {}
                 }, 5000);
