@@ -4696,7 +4696,10 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                 // 1. Récupérer la save la plus récente (de l'autre appareil)
                 pullAndApply(uid).then(function() {
                     // 2. Recharger l'affichage avec les données fraîches
-                    if(window.game) window.game.reloadFromStorage();
+                    if(window.game) {
+                        window.game.reloadFromStorage();
+                        setTimeout(function(){ if(window.game.renderAccountUI) window.game.renderAccountUI(); }, 100);
+                    }
                     // 3. Enregistrer notre nouvelle session
                     self._sessionTs = Date.now();
                     self._sessionConflictShown = false;
@@ -4928,12 +4931,19 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
             }
             if(user && !user.is_anonymous) {
                 if(event === 'INITIAL_SESSION') doStartupPull(user);
-                if(event === 'SIGNED_IN') { _pullDone = false; doStartupPull(user); }
+                if(event === 'SIGNED_IN') {
+                    _pullDone = false;
+                    doStartupPull(user);
+                }
             } else {
                 window.dispatchEvent(new Event('cloudsync-ready'));
             }
             window.dispatchEvent(new CustomEvent('cloudsync-auth', { detail: user }));
-            if(window.game && window.game.renderAccountUI) window.game.renderAccountUI();
+            // renderAccountUI est appelé dans doStartupPull après le pull cloud
+            // Pour les events non couverts par doStartupPull, on force ici
+            if(window.game && window.game.renderAccountUI && event !== 'SIGNED_IN' && event !== 'INITIAL_SESSION') {
+                window.game.renderAccountUI();
+            }
         });
 
         _sb.auth.getSession().then(function(res) {
