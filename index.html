@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV276</title>
+    <title>CryptoV277</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -5492,15 +5492,7 @@ const firebaseConfig = window._firebaseConfig || {
                 setInterval(() => this.fastTick(), 50);
                 // Polling crew chat toutes les 15s
                 setInterval(() => this._pollCrewChat(), 15000);
-                // Push cloud toutes les 5s
-                setInterval(() => {
-                    try {
-                        if(window.CloudSync && window.CloudSync.user && !window.CloudSync.user.is_anonymous) {
-                            this._saveState();
-                            window.CloudSync.pushSave(window.CloudSync.user.id);
-                        }
-                    } catch(e) {}
-                }, 5000);
+                // Pas de push automatique — seulement sur actions utilisateur
             },
 
             setFirstName() {
