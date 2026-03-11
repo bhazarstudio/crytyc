@@ -4690,40 +4690,53 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
             },
 
             // Enregistrer une nouvelle session (invalide tous les autres appareils)
+            // Stocké dans la save principale pour passer le RLS
             registerSession: function(uid) {
-                var token = uid + '_' + Date.now() + '_' + Math.random().toString(36).substr(2,9);
-                this._sessionToken = token;
-                try { localStorage.setItem('ct_session_token', token); } catch(e) {}
-                _sb.from('saves').upsert({ uid: uid + '_session', data: { token: token }, saved_at: new Date().toISOString() })
-                    .catch(function(){});
-                console.log('%c[Session] Nouvelle session enregistrée', 'color:cyan');
+                this._sessionTs = Date.now();
+                try { localStorage.setItem('ct_session_ts', String(this._sessionTs)); } catch(e) {}
+                // Push immédiat avec le nouveau sessionTs — les autres appareils le verront via Realtime
+                if(window.game) window.game._saveState();
+                pushSave(uid);
+                console.log('%c[Session] Nouvelle session : ' + this._sessionTs, 'color:cyan');
             },
 
-            // Vérifier si notre session est toujours active
+            // Vérifier si notre session est toujours active (fallback sans Realtime)
             checkSession: function(uid) {
                 var self = this;
-                var myToken = self._sessionToken || localStorage.getItem('ct_session_token');
-                if(!myToken) return;
-                _sb.from('saves').select('data').eq('uid', uid + '_session').single()
+                var myTs = self._sessionTs || parseInt(localStorage.getItem('ct_session_ts') || '0');
+                if(!myTs) return;
+                _sb.from('saves').select('data').eq('uid', uid).single()
                     .then(function(res) {
-                        if(!res || !res.data || !res.data.data) return;
-                        var activeToken = res.data.data.token;
-                        if(activeToken && activeToken !== myToken) {
-                            // Session invalidée — déco + message
-                            console.log('%c[Session] Session expirée, déconnexion', 'color:red');
-                            self._sessionToken = null;
-                            try { localStorage.removeItem('ct_session_token'); } catch(e) {}
-                            if(window.game) {
-                                window.game._saveState();
-                                window.game.showGameModal({
-                                    title: '📱 Session ouverte ailleurs',
-                                    html: '<div style="text-align:center;padding:16px 0">Ton compte a été ouvert sur un autre appareil.<br><br>Reconnecte-toi pour reprendre ici.</div>',
-                                    primaryText: 'Se reconnecter',
-                                    onPrimary: () => { window.CloudSync.registerSession(uid); }
-                                });
+                        if(res && res.error) return;
+                        var row = res && res.data;
+                        if(!row || !row.data || !row.data.ct_gamestate_v1) return;
+                        try {
+                            var s = JSON.parse(row.data.ct_gamestate_v1);
+                            var cloudTs = s._sessionTs || 0;
+                            if(cloudTs > myTs) {
+                                self._handleSessionConflict(uid, cloudTs);
                             }
-                        }
+                        } catch(e) {}
                     }).catch(function(){});
+            },
+
+            // Gérer le conflit de session
+            _handleSessionConflict: function(uid, cloudTs) {
+                if(this._sessionConflictShown) return;
+                this._sessionConflictShown = true;
+                console.log('%c[Session] Conflit ! Cloud=' + cloudTs + ' Local=' + this._sessionTs, 'color:red');
+                if(window.game) {
+                    window.game._saveState();
+                    window.game.showGameModal({
+                        title: '📱 Session ouverte ailleurs',
+                        html: '<div style="text-align:center;padding:16px 0">Ton compte a été ouvert sur un autre appareil.<br><br>Reconnecte-toi ici pour reprendre.</div>',
+                        primaryText: 'Reprendre ici',
+                        onPrimary: () => {
+                            this._sessionConflictShown = false;
+                            window.CloudSync.registerSession(uid);
+                        }
+                    });
+                }
             },
             // Applique les données reçues en temps réel (prix + état)
             applyRealtimeData: function(cloudData) {
@@ -4741,6 +4754,13 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                     var localTs = window.game._lastSaveTs || 0;
                     var cloudTs = s._ts || 0;
                     if(cloudIpoTs === localIpoTs && cloudTs <= localTs) return;
+                    // Détecter conflit de session (connexion sur autre appareil)
+                    var mySessionTs = (window.CloudSync && window.CloudSync._sessionTs) ? window.CloudSync._sessionTs : 0;
+                    var cloudSessionTs = s._sessionTs || 0;
+                    if(cloudSessionTs > mySessionTs && mySessionTs > 0) {
+                        window.CloudSync._handleSessionConflict(window.CloudSync.user ? window.CloudSync.user.id : '', cloudSessionTs);
+                        return;
+                    }
                     // Bougies de transition pour les prix qui changent
                     if(s.prices && window.game.coinHistory) {
                         for(var coin in s.prices) {
@@ -6452,6 +6472,7 @@ _refillNewsDeck(sentiment) {
                         loan: this.loan,
                         _ipoCount: this.detailedStats ? (this.detailedStats.ipoCount || 0) : 0,
                         _lastIpoTs: this._lastIpoTs || 0,
+                        _sessionTs: (window.CloudSync && window.CloudSync._sessionTs) ? window.CloudSync._sessionTs : 0,
                         level: this.level,
                         day: this.day,
                         reputation: this.reputation,
