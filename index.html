@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV273</title>
+    <title>CryptoV274</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -4668,6 +4668,8 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
             applyRealtimeData: function(cloudData) {
                 try {
                     if(!cloudData || !cloudData['ct_gamestate_v1'] || !window.game) return;
+                    // Bloquer si on vient de faire une action majeure (IPO, etc.)
+                    if(window.game._realtimeBlockUntil && Date.now() < window.game._realtimeBlockUntil) return;
                     var s = JSON.parse(cloudData['ct_gamestate_v1']);
                     if(!s) return;
                     // Vérifier timestamp : n'appliquer que si cloud > local
@@ -10100,6 +10102,10 @@ const step1 = document.getElementById('trade-step-1');
                                             : `EMPIRE VENDU : +${pointsGagnes} PTS`;
                                         this.spawnPop(window.innerWidth/2, window.innerHeight/2, popMsg, true);
                         this.playSound('overclock');
+                        // Push cloud immédiat + bloc Realtime entrant 10s
+                        this._saveState();
+                        this._realtimeBlockUntil = Date.now() + 10000;
+                        try { if(window.CloudSync && window.CloudSync.user) window.CloudSync.pushSave(window.CloudSync.user.id); } catch(e) {}
                         // Sync classement immédiat après IPO
                         try { this.syncLeaderboard(true); } catch(e) {}
                     }
@@ -11410,6 +11416,7 @@ document.getElementById('t-slider').value=0;
                     this.wallet[this.sel] += qty;
                     this.tradeCount = (this.tradeCount || 0) + 1;
                     // Push cloud immédiat après achat
+                    this._realtimeBlockUntil = Date.now() + 5000;
                     try { if(window.CloudSync && window.CloudSync.user && !window.CloudSync.user.is_anonymous) { this._saveState(); window.CloudSync.pushSave(window.CloudSync.user.id); } } catch(e) {}
 
                     // Pop clair : base + bonus
