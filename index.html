@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV276</title>
+    <title>CryptoV279</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -4671,6 +4671,60 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                     .then(function(res) { if(res.error) throw res.error; return res.data.user; });
             },
             logout: function() { return _sb.auth.signOut(); },
+
+            // Push léger des prix uniquement (jamais cash/wallet)
+            pushPrices: function(uid) {
+                if(!uid || !window.game) return;
+                try {
+                    var p = {
+                        prices: window.game.prices,
+                        targetPrices: window.game.targetPrices,
+                        cycleTargets: window.game.cycleTargets,
+                        marketState: window.game.marketState,
+                        cycleTimer: window.game.cycleTimer,
+                        _ts: Date.now()
+                    };
+                    _sb.from('saves').upsert({ uid: uid + '_prices', data: { ct_prices: JSON.stringify(p) }, saved_at: new Date().toISOString() })
+                        .catch(function(){});
+                } catch(e) {}
+            },
+
+            // Enregistrer une nouvelle session (invalide tous les autres appareils)
+            registerSession: function(uid) {
+                var token = uid + '_' + Date.now() + '_' + Math.random().toString(36).substr(2,9);
+                this._sessionToken = token;
+                try { localStorage.setItem('ct_session_token', token); } catch(e) {}
+                _sb.from('saves').upsert({ uid: uid + '_session', data: { token: token }, saved_at: new Date().toISOString() })
+                    .catch(function(){});
+                console.log('%c[Session] Nouvelle session enregistrée', 'color:cyan');
+            },
+
+            // Vérifier si notre session est toujours active
+            checkSession: function(uid) {
+                var self = this;
+                var myToken = self._sessionToken || localStorage.getItem('ct_session_token');
+                if(!myToken) return;
+                _sb.from('saves').select('data').eq('uid', uid + '_session').single()
+                    .then(function(res) {
+                        if(!res || !res.data || !res.data.data) return;
+                        var activeToken = res.data.data.token;
+                        if(activeToken && activeToken !== myToken) {
+                            // Session invalidée — déco + message
+                            console.log('%c[Session] Session expirée, déconnexion', 'color:red');
+                            self._sessionToken = null;
+                            try { localStorage.removeItem('ct_session_token'); } catch(e) {}
+                            if(window.game) {
+                                window.game._saveState();
+                                window.game.showGameModal({
+                                    title: '📱 Session ouverte ailleurs',
+                                    html: '<div style="text-align:center;padding:16px 0">Ton compte a été ouvert sur un autre appareil.<br><br>Reconnecte-toi pour reprendre ici.</div>',
+                                    primaryText: 'Se reconnecter',
+                                    onPrimary: () => { window.CloudSync.registerSession(uid); }
+                                });
+                            }
+                        }
+                    }).catch(function(){});
+            },
             // Applique les données reçues en temps réel (prix + état)
             applyRealtimeData: function(cloudData) {
                 try {
@@ -4717,11 +4771,29 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                         table: 'saves',
                         filter: 'uid=eq.' + uid
                     }, function(payload) {
-                        console.log('%c[CloudSync] 🔄 Realtime reçu !', 'color:lime');
+                        console.log('%c[CloudSync] 🔄 Realtime état reçu', 'color:lime');
                         try {
                             var d = (payload.new && payload.new.data) ? payload.new.data : null;
                             if(d) window.CloudSync.applyRealtimeData(d);
                         } catch(e) { console.warn('Realtime apply:', e); }
+                    })
+                    .on('postgres_changes', {
+                        event: '*',
+                        schema: 'public',
+                        table: 'saves',
+                        filter: 'uid=eq.' + uid + '_prices'
+                    }, function(payload) {
+                        try {
+                            var raw = payload.new && payload.new.data && payload.new.data.ct_prices;
+                            if(!raw || !window.game) return;
+                            var p = JSON.parse(raw);
+                            if(!p) return;
+                            if(p.prices) window.game.prices = p.prices;
+                            if(p.targetPrices) window.game.targetPrices = p.targetPrices;
+                            if(p.cycleTargets) window.game.cycleTargets = p.cycleTargets;
+                            if(p.marketState) window.game.marketState = p.marketState;
+                            if(p.cycleTimer != null) window.game.cycleTimer = p.cycleTimer;
+                        } catch(e) {}
                     })
                     .subscribe(function(status, err) {
                         console.log('%c[CloudSync] Realtime: ' + status, 'color:cyan');
@@ -4763,6 +4835,8 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                 window.dispatchEvent(new Event('cloudsync-ready'));
                 // Démarrer la sync Realtime après le pull initial
                 window.CloudSync.startRealtime(user.id);
+                // Enregistrer la session au démarrage
+                window.CloudSync.registerSession(user.id);
             });
         }
 
@@ -5492,15 +5566,15 @@ const firebaseConfig = window._firebaseConfig || {
                 setInterval(() => this.fastTick(), 50);
                 // Polling crew chat toutes les 15s
                 setInterval(() => this._pollCrewChat(), 15000);
-                // Push cloud toutes les 5s
+                // Push des prix toutes les 10s + vérification session
                 setInterval(() => {
                     try {
                         if(window.CloudSync && window.CloudSync.user && !window.CloudSync.user.is_anonymous) {
-                            this._saveState();
-                            window.CloudSync.pushSave(window.CloudSync.user.id);
+                            window.CloudSync.pushPrices(window.CloudSync.user.id);
+                            window.CloudSync.checkSession(window.CloudSync.user.id);
                         }
                     } catch(e) {}
-                }, 5000);
+                }, 10000);
             },
 
             setFirstName() {
@@ -6179,11 +6253,6 @@ _refillNewsDeck(sentiment) {
                 
                 const chartBox = document.getElementById('mini-chart-container');
                 if(chartBox) {
-                    chartBox.addEventListener('dblclick', (e) => {
-                        e.preventDefault();
-                        game.openBigChart();
-                    });
-                    
                     let touchStartX = 0;
                     chartBox.addEventListener('touchstart', e => {
                         touchStartX = e.changedTouches[0].screenX;
@@ -6256,7 +6325,12 @@ _refillNewsDeck(sentiment) {
                     } else {
                         startAudio();
                         this._checkOfflineEarnings();
-                        // Realtime sync les prix — pas besoin de pullAndApply au retour
+                        // Enregistrer nouvelle session (invalide les autres appareils)
+                        try {
+                            if(window.CloudSync && window.CloudSync.user && !window.CloudSync.user.is_anonymous) {
+                                window.CloudSync.registerSession(window.CloudSync.user.id);
+                            }
+                        } catch(e) {}
                     }
                 });
 
