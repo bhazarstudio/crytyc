@@ -4760,7 +4760,7 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                         clearInterval(timer);
                         // Déconnexion + effacement TOTAL du localStorage
                         try { _sb.auth.signOut(); } catch(e) {}
-                        try { ['ct_gamestate_v1','ct_history','ct_coinhistory','ct_session_ts','detailedStats','ct_skills','ct_txlog','ct_themes','ct_offline_snap','ct_crew','playerName','avatarIdx','ct_logos_v4_227','gameSettings'].forEach(function(k){localStorage.removeItem(k);}); } catch(e) {}
+                        // signOut déclenche SIGNED_OUT → handler remet tout à 0
                         // Afficher bouton reconnexion
                         var overlay = document.getElementById('session-conflict-overlay');
                         if(overlay) {
@@ -4907,11 +4907,30 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                 window.game.leaderboard.uid = user.id;
                 window.game.syncLeaderboard && window.game.syncLeaderboard(true);
             }
+            if(event === 'SIGNED_OUT') {
+                // Reset total de l'état jeu en mémoire
+                if(window.game) {
+                    window.game.cash = 0; window.game.displayedCash = 0;
+                    window.game.loan = 0; window.game.level = 1; window.game.day = 1;
+                    window.game.reputation = 0; window.game.prestige = 0; window.game.maxNet = 0;
+                    window.game.displayedNet = 0; window.game.displayedPrestige = 0;
+                    window.game.wallet = {btc:0,eth:0,stakedEth:0,sol:0,bnb:0,doge:0,xrp:0,stakedXrp:0};
+                    window.game.history = [0]; window.game.historyIncome = [0];
+                    window.game.username = ''; window.game.avatarIdx = 0;
+                    window.game.skillPts = 0; window.game.unlockedSkills = {};
+                    window.game.detailedStats = {};
+                    if(window.game.assets) window.game.assets.forEach(function(a){if(a.owned>0){a.cost=a.cost/Math.pow(1.2,a.owned);a.owned=0;}});
+                    try { window.game.updateUI(); } catch(e) {}
+                    try { window.game.renderAccountUI(); } catch(e) {}
+                }
+                window.dispatchEvent(new Event('cloudsync-ready'));
+                return;
+            }
             if(user && !user.is_anonymous) {
                 if(event === 'INITIAL_SESSION') doStartupPull(user);
                 if(event === 'SIGNED_IN') { _pullDone = false; doStartupPull(user); }
             } else {
-                                window.dispatchEvent(new Event('cloudsync-ready'));
+                window.dispatchEvent(new Event('cloudsync-ready'));
             }
             window.dispatchEvent(new CustomEvent('cloudsync-auth', { detail: user }));
             if(window.game && window.game.renderAccountUI) window.game.renderAccountUI();
@@ -11346,7 +11365,7 @@ for(let c in this.cryptoConfig) {
                     primaryText: "Oui, réinitialiser",
                     secondaryText: "Annuler",
                     onPrimary: () => {
-                        try { ['ct_gamestate_v1','ct_history','ct_coinhistory','ct_session_ts','detailedStats','ct_skills','ct_txlog','ct_themes','ct_offline_snap','ct_crew','playerName','avatarIdx','ct_logos_v4_227','gameSettings'].forEach(function(k){localStorage.removeItem(k);}); } catch(e) {}
+                        // signOut déclenche SIGNED_OUT → handler remet tout à 0
                         location.reload();
                     }
                 });
