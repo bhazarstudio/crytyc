@@ -4596,7 +4596,6 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
         var _pushing = false;
         function pushSave(uid) {
             if(!uid || _pushing) return Promise.resolve();
-            if(window.CloudSync && window.CloudSync._sessionInvalidated) return Promise.resolve();
             _pushing = true;
             var data = getSaveData();
             return _sb.from('saves').upsert({ uid: uid, data: data, saved_at: new Date().toISOString() })
@@ -4735,20 +4734,20 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                     }).catch(function(){});
             },
 
-            // Gérer le conflit de session — déco forcée, ouverture du login
+            // Gérer le conflit de session — déco forcée, pas d'option
             _handleSessionConflict: function(uid, cloudTs) {
                 if(this._sessionConflictShown) return;
                 this._sessionConflictShown = true;
-                // Bloquer les pushs pendant la déco
-                this._sessionInvalidated = true;
                 console.log('%c[Session] Conflit détecté, déconnexion forcée', 'color:red');
-                // Overlay bloquant
+                // Sauvegarder l'état local immédiatement
+                if(window.game) window.game._saveState();
+                // Bloquer toute interaction
                 var overlay = document.getElementById('session-conflict-overlay');
                 if(!overlay) {
                     overlay = document.createElement('div');
                     overlay.id = 'session-conflict-overlay';
-                    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:99999;display:flex;align-items:center;justify-content:center;';
-                    overlay.innerHTML = '<div style="text-align:center;color:#fff;padding:32px;max-width:320px"><div style="font-size:2em;margin-bottom:16px">📱</div><div style="font-size:1.1em;font-weight:700;margin-bottom:12px;color:#ff4444">Session ouverte ailleurs</div><div style="color:#aaa;font-size:0.9em;margin-bottom:24px">Ton compte a été ouvert sur un autre appareil.</div><div id="session-countdown" style="font-size:2.5em;font-weight:900;color:#ff4444">5</div></div>';
+                    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);z-index:99999;display:flex;align-items:center;justify-content:center;';
+                    overlay.innerHTML = '<div style="text-align:center;color:#fff;padding:32px;max-width:320px"><div style="font-size:2em;margin-bottom:16px">📱</div><div style="font-size:1.1em;font-weight:700;margin-bottom:12px;color:#ff4444">Session ouverte ailleurs</div><div style="color:#aaa;font-size:0.9em;margin-bottom:24px">Ton compte a été ouvert sur un autre appareil. Tu vas être déconnecté.</div><div id="session-countdown" style="font-size:2.5em;font-weight:900;color:#ff4444">5</div></div>';
                     document.body.appendChild(overlay);
                 }
                 var count = 5;
@@ -4759,33 +4758,39 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                     if(el) el.textContent = count;
                     if(count <= 0) {
                         clearInterval(timer);
-                        // Déconnexion silencieuse — PAS de reload, PAS de push
+                        // Déconnexion réelle
                         try { _sb.auth.signOut(); } catch(e) {}
                         try { localStorage.removeItem('ct_session_ts'); } catch(e) {}
-                        self._sessionTs = 0;
-                        // Afficher le bouton de reconnexion qui ouvre le panel login
-                        var ov = document.getElementById('session-conflict-overlay');
-                        if(ov) {
-                            ov.innerHTML = '<div style="text-align:center;color:#fff;padding:32px;max-width:320px">'
+                        // Remplacer le countdown par un bouton de reconnexion
+                        // Reset état jeu : garder uniquement pseudo et avatar
+                        if(window.game) {
+                            var savedName = window.game.username || '';
+                            var savedAvatar = window.game.avatarIdx || 0;
+                            // Vider localStorage sauf pseudo/avatar
+                            try {
+                                localStorage.removeItem('ct_gamestate_v1');
+                                localStorage.removeItem('ct_history');
+                                localStorage.removeItem('ct_coinhistory');
+                                localStorage.removeItem('ct_session_ts');
+                                localStorage.removeItem('detailedStats');
+                                localStorage.removeItem('ct_skills');
+                                localStorage.removeItem('ct_txlog');
+                            } catch(e) {}
+                            // Restaurer pseudo et avatar
+                            try {
+                                localStorage.setItem('playerName', savedName);
+                                localStorage.setItem('avatarIdx', String(savedAvatar));
+                            } catch(e) {}
+                        }
+                        // Afficher bouton reconnexion (pas de reload auto)
+                        var overlay = document.getElementById('session-conflict-overlay');
+                        if(overlay) {
+                            overlay.innerHTML = '<div style="text-align:center;color:#fff;padding:32px;max-width:320px">'
                                 + '<div style="font-size:2em;margin-bottom:16px">🔒</div>'
-                                + '<div style="font-size:1.1em;font-weight:700;margin-bottom:16px;">Déconnecté</div>'
-                                + '<div style="color:#aaa;font-size:0.9em;margin-bottom:28px">Reconnecte-toi pour continuer.<br>Tes données seront récupérées.</div>'
-                                + '<button id="btn-session-relogin" style="background:#00e676;color:#000;border:none;padding:14px 32px;border-radius:8px;font-size:1em;font-weight:700;cursor:pointer;width:100%">Se reconnecter</button>'
+                                + '<div style="font-size:1.1em;font-weight:700;margin-bottom:12px;">Déconnecté</div>'
+                                + '<div style="color:#aaa;font-size:0.9em;margin-bottom:24px">Session terminée sur cet appareil.</div>'
+                                + '<button onclick="window._sessionReconnect()" style="background:#00e676;color:#000;border:none;padding:14px 32px;border-radius:8px;font-size:1em;font-weight:700;cursor:pointer;width:100%">Se reconnecter</button>'
                                 + '</div>';
-                            document.getElementById('btn-session-relogin').onclick = function() {
-                                // Supprimer l'overlay et ouvrir les réglages > compte
-                                var ov2 = document.getElementById('session-conflict-overlay');
-                                if(ov2) ov2.remove();
-                                self._sessionConflictShown = false;
-                                self._sessionInvalidated = false;
-                                // Naviguer vers réglages
-                                if(window.game) {
-                                    try { window.game.tab('plus'); } catch(e) {}
-                                    setTimeout(function() {
-                                        try { window.game.openApp('settings'); } catch(e) {}
-                                    }, 100);
-                                }
-                            };
                         }
                     }
                 }, 1000);
@@ -4925,11 +4930,7 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
             }
             if(user && !user.is_anonymous) {
                 if(event === 'INITIAL_SESSION') doStartupPull(user);
-                if(event === 'SIGNED_IN') {
-                    _pullDone = false;
-                    if(window.CloudSync) window.CloudSync._sessionInvalidated = false;
-                    doStartupPull(user);
-                }
+                if(event === 'SIGNED_IN') { _pullDone = false; doStartupPull(user); }
             } else {
                                 window.dispatchEvent(new Event('cloudsync-ready'));
             }
@@ -17435,6 +17436,12 @@ this.showGameModal({
         }; // FIN DE L'OBJET GAME
 
         window.game = game;
+        window._sessionReconnect = function() {
+            var ov = document.getElementById('session-conflict-overlay');
+            if(ov) ov.remove();
+            game.tab('plus');
+            setTimeout(function() { game.openApp('account'); }, 150);
+        };
         window.onload = function() { game.init(); };
 
         // Flush important stats on exit (best-effort)
