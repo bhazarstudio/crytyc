@@ -12,7 +12,7 @@
         }
       } catch(e){}
     </script>
-    <title>CryptoV281</title>
+    <title>CryptoV282</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cinzel:wght@700;900&family=Rajdhani:wght@600;700&family=Exo+2:wght@300;700;900&family=VT323&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
@@ -4695,16 +4695,17 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                 var self = this;
                 // 1. Récupérer la save la plus récente (de l'autre appareil)
                 pullAndApply(uid).then(function() {
-                    // 2. Enregistrer notre nouvelle session
+                    // 2. Recharger l'affichage avec les données fraîches
+                    if(window.game) window.game.reloadFromStorage();
+                    // 3. Enregistrer notre nouvelle session
                     self._sessionTs = Date.now();
                     self._sessionConflictShown = false;
                     try { localStorage.setItem('ct_session_ts', String(self._sessionTs)); } catch(e) {}
-                    // 3. Push immédiat pour invalider les autres
+                    // 4. Push pour invalider les autres appareils
                     if(window.game) window.game._saveState();
                     pushSave(uid);
-                    console.log('%c[Session] Nouvelle session enregistrée : ' + self._sessionTs, 'color:cyan');
+                    console.log('%c[Session] Nouvelle session + état récupéré', 'color:cyan');
                 }).catch(function() {
-                    // Même si pull échoue, on enregistre quand même
                     self._sessionTs = Date.now();
                     self._sessionConflictShown = false;
                     try { localStorage.setItem('ct_session_ts', String(self._sessionTs)); } catch(e) {}
@@ -4760,8 +4761,16 @@ body.t-ice { --neon:#00d2ff!important; --cash:#0088ff!important; --xp:#0055cc!im
                         // Déconnexion réelle
                         try { _sb.auth.signOut(); } catch(e) {}
                         try { localStorage.removeItem('ct_session_ts'); } catch(e) {}
-                        // Recharger la page
-                        setTimeout(function() { location.reload(); }, 500);
+                        // Remplacer le countdown par un bouton de reconnexion
+                        var overlay = document.getElementById('session-conflict-overlay');
+                        if(overlay) {
+                            overlay.innerHTML = '<div style="text-align:center;color:#fff;padding:32px;max-width:320px">'
+                                + '<div style="font-size:2em;margin-bottom:16px">🔒</div>'
+                                + '<div style="font-size:1.1em;font-weight:700;margin-bottom:12px;">Déconnecté</div>'
+                                + '<div style="color:#aaa;font-size:0.9em;margin-bottom:24px">Session terminée sur cet appareil.</div>'
+                                + '<button onclick="location.reload()" style="background:#00e676;color:#000;border:none;padding:14px 32px;border-radius:8px;font-size:1em;font-weight:700;cursor:pointer;width:100%">Se reconnecter</button>'
+                                + '</div>';
+                        }
                     }
                 }, 1000);
             },
